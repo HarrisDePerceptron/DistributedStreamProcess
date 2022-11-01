@@ -7,7 +7,6 @@
 #include <sw/redis++/redis++.h>
 #include "utilities.h"
 #include <fmt/core.h>
-#include <fmt/format.h>
 #include <fmt/ostream.h>
 
 
@@ -144,6 +143,52 @@ private:
 		return consumers;
 	}
 
+
+	DistributedTask::XInfoGroupResponse parseXinfoGroupResponse(const XinfoParseResponse & raw){
+		DistributedTask::XInfoGroupResponse res;
+		
+		for(const auto & groups: raw){
+			for (const auto & attr: groups){
+				const auto & key = attr.first;
+				const auto & value = attr.second;
+				
+
+				std::string kl = "";
+	
+				std::transform(key.begin(), key.end(), std::back_inserter(kl), [](const char & c){
+					return std::tolower(c);
+				});
+				
+				if (kl=="name"){
+					res.groupName = value;
+				}else if (kl=="consumers"){
+					if(value!="")
+					res.consumers = std::stoi(value);
+				}else if (kl=="pending"){
+					if(value!="")
+					res.pending= std::stoi(value);
+
+				}else if (kl=="last-delivered-id"){
+					res.lastDeliveredStreamId = value;
+				}else if (kl=="entries-read"){
+					if(value!="")
+					res.entriesRead= std::stoi(value);
+				}else if(kl=="lag"){
+					if(value!="")
+					res.lag = std::stoi(value);
+				}
+
+				
+			}
+		}
+
+		return res;		
+		
+	}
+
+
+	
+
 public:
 	Task() = delete;
 	Task(const Task &) = delete;
@@ -176,9 +221,9 @@ public:
 		redis.xadd(outputStreamName, streamId, data.begin(), data.end());
 	}
 
-	StreamMessage parseReadGroup(const GroupReadResult &result)
+	DistributedTask::StreamMessage parseReadGroup(const GroupReadResult &result)
 	{
-		StreamMessage so;
+		DistributedTask::StreamMessage so;
 
 		for (const auto &e : result)
 		{
@@ -199,7 +244,7 @@ public:
 		redis.xack(inputStreamName, groupName, streamId);
 	}
 
-	StreamMessage readNewGroupMessages(long long count, unsigned int waitDuration)
+	DistributedTask::StreamMessage readNewGroupMessages(long long count, unsigned int waitDuration)
 	{
 		GroupReadResult result;
 		std::chrono::milliseconds wait{waitDuration};
@@ -217,7 +262,7 @@ public:
 		return streamMessage;
 	}
 
-	StreamMessage readPendingGroupMessages(long long count, unsigned int waitDurationMillis)
+	DistributedTask::StreamMessage readPendingGroupMessages(long long count, unsigned int waitDurationMillis)
 	{
 		GroupReadResult result;
 		std::chrono::milliseconds wait{waitDurationMillis};
@@ -247,11 +292,13 @@ public:
 		}
 	}
 
-	XinfoParseResponse getGroupInfo()
+	DistributedTask::XInfoGroupResponse getGroupInfo()
 	{
 		auto res = redis.command("xinfo", "groups", inputStreamName);
 		auto xinfoRes = parseXInfoGroup(res);
-		return xinfoRes;
+
+		auto groupResponse = parseXinfoGroupResponse(xinfoRes);
+		return groupResponse;
 	}
 
 	XinfoParseResponse getGroupConsumerInfo()

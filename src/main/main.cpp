@@ -14,11 +14,7 @@
 
 #include "task.h"
 
-
-
 namespace RedisNS = sw::redis;
-
-
 
 auto main(int argc, char *argv[]) -> int
 {
@@ -63,15 +59,9 @@ auto main(int argc, char *argv[]) -> int
 
 	// task.consume(1);
 	auto res = task.getGroupInfo();
-
-	for (const auto &e : res)
-	{
-		for (const auto &i : e)
-		{
-			fmt::print("{}: {}\n", i.first, i.second);
-		}
-	}
-
+	
+	fmt::print("Xinfo group respinse: \n{}\n", res);
+	
 	auto consumers = task.getGroupConsumerInfo();
 	
 
@@ -84,6 +74,7 @@ auto main(int argc, char *argv[]) -> int
 	{
 		fmt::print("name: {}\n", e);
 	}
+
 
 	return 0;
 }
