@@ -3,6 +3,7 @@
 #include <vector>
 #include <string>
 #include <fstream>
+#include <sstream>
 
 namespace Utilities
 {
@@ -32,9 +33,24 @@ namespace Utilities
         return buff;
     }
 
-
-    std::string binaryToString(std::vector<std::byte> &  buff){
+    std::string binaryToString(std::vector<std::byte> &buff)
+    {
         std::string stringBuff{reinterpret_cast<const char *>(buff.data()), buff.size()};
         return stringBuff;
+    }
+
+    std::vector<std::string> splitString(const std::string &s, char token)
+    {
+
+        std::stringstream test{s};
+        std::string segment;
+        std::vector<std::string> seglist;
+
+        while (std::getline(test, segment, token))
+        {
+            seglist.push_back(segment);
+        }
+
+        return seglist;
     }
 }

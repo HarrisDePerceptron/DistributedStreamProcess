@@ -57,6 +57,9 @@ namespace DistributedTask
 		}
 	};
 
+
+
+
 	struct XInfoConsumer
 	{
 		std::string groupName;
@@ -64,9 +67,18 @@ namespace DistributedTask
 		unsigned int pending;
 		long long int idle;
 
-		std::ostream & operator<<(std::ostream & os){
+		friend std::ostream & operator<<(std::ostream & os,  const XInfoConsumer & res){
+
+			os<<"{\n";
+			os<<"groupName: "<<res.groupName<<",";
+			os<<"\n"<<"consumerName: "<<res.consumerName<<",";
+			os<<"\n"<<"pending: "<<res.pending<<",";
+			os<<"\n"<<"idle: "<<res.idle;
+			os<<"\n}";
 			return os;
+
 		}
 	};
+
 
 }

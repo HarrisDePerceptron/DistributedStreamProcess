@@ -1,6 +1,5 @@
 #pragma once
 
-
 #include <iostream>
 #include <vector>
 #include <thread>
@@ -9,9 +8,8 @@
 #include <fmt/core.h>
 #include <fmt/ostream.h>
 
-
 #include "task_response.h"
-
+#include "hostinfo.h"
 
 namespace RedisNS = sw::redis;
 
@@ -20,7 +18,6 @@ using Item = std::pair<std::string, RedisNS::Optional<Attrs>>;
 using ItemStream = std::vector<Item>;
 
 using GroupReadResult = std::unordered_map<std::string, ItemStream>;
-
 
 class Task
 {
@@ -143,55 +140,102 @@ private:
 		return consumers;
 	}
 
+	std::vector<DistributedTask::XInfoGroupResponse> parseXinfoGroupResponse(const XinfoParseResponse &raw)
+	{
+		std::vector<DistributedTask::XInfoGroupResponse> response;
 
-	DistributedTask::XInfoGroupResponse parseXinfoGroupResponse(const XinfoParseResponse & raw){
-		DistributedTask::XInfoGroupResponse res;
-		
-		for(const auto & groups: raw){
-			for (const auto & attr: groups){
-				const auto & key = attr.first;
-				const auto & value = attr.second;
-				
+		for (const auto &groups : raw)
+		{
+			DistributedTask::XInfoGroupResponse res;
+
+			for (const auto &attr : groups)
+			{
+				const auto &key = attr.first;
+				const auto &value = attr.second;
 
 				std::string kl = "";
-	
-				std::transform(key.begin(), key.end(), std::back_inserter(kl), [](const char & c){
-					return std::tolower(c);
-				});
-				
-				if (kl=="name"){
+
+				std::transform(key.begin(), key.end(), std::back_inserter(kl), [](const char &c)
+							   { return std::tolower(c); });
+
+				if (kl == "name")
+				{
 					res.groupName = value;
-				}else if (kl=="consumers"){
-					if(value!="")
-					res.consumers = std::stoi(value);
-				}else if (kl=="pending"){
-					if(value!="")
-					res.pending= std::stoi(value);
-
-				}else if (kl=="last-delivered-id"){
-					res.lastDeliveredStreamId = value;
-				}else if (kl=="entries-read"){
-					if(value!="")
-					res.entriesRead= std::stoi(value);
-				}else if(kl=="lag"){
-					if(value!="")
-					res.lag = std::stoi(value);
 				}
-
-				
+				else if (kl == "consumers")
+				{
+					if (value != "")
+						res.consumers = std::stoi(value);
+				}
+				else if (kl == "pending")
+				{
+					if (value != "")
+						res.pending = std::stoi(value);
+				}
+				else if (kl == "last-delivered-id")
+				{
+					res.lastDeliveredStreamId = value;
+				}
+				else if (kl == "entries-read")
+				{
+					if (value != "")
+						res.entriesRead = std::stoi(value);
+				}
+				else if (kl == "lag")
+				{
+					if (value != "")
+						res.lag = std::stoi(value);
+				}
 			}
+
+			response.push_back(res);
 		}
 
-		return res;		
-		
+		return response;
 	}
 
+	std::vector<DistributedTask::XInfoConsumer> parseXinfoConsumerResponse(const XinfoParseResponse &raw, const std::string & groupName)
+	{
+		std::vector<DistributedTask::XInfoConsumer> response;
 
-	
+		for (const auto &groups : raw)
+		{
+			DistributedTask::XInfoConsumer res;
+			res.groupName = groupName;
+			
+			for (const auto &attr : groups)
+			{
+				const auto &key = attr.first;
+				const auto &value = attr.second;
+				
+				std::string kl = "";
+
+				std::transform(key.begin(), key.end(), std::back_inserter(kl), [](const char &c)
+							   { return std::tolower(c); });
+
+				if (kl == "name")
+				{
+					res.consumerName = value;
+				}
+				else if (kl == "pending")
+				{
+					if (value != "")
+						res.pending = std::stoi(value);
+				}
+				else if (kl == "idle")
+				{
+					if (value != "")
+						res.idle = std::stoi(value);
+				}
+			}
+			response.push_back(res);
+		}
+
+		return response;
+	}
 
 public:
 	Task() = delete;
-	Task(const Task &) = delete;
 	Task(const Task &&) = delete;
 	Task &operator=(const Task &) = delete;
 	Task &operator=(const Task &&) = delete;
@@ -207,6 +251,8 @@ public:
 
 		this->groupName = this->taskName;
 		this->consumerName = this->taskName + "_consumer";
+
+		initialize();
 	}
 
 	void sendOutput(const Attrs &data)
@@ -292,7 +338,7 @@ public:
 		}
 	}
 
-	DistributedTask::XInfoGroupResponse getGroupInfo()
+	std::vector<DistributedTask::XInfoGroupResponse> getGroupInfo()
 	{
 		auto res = redis.command("xinfo", "groups", inputStreamName);
 		auto xinfoRes = parseXInfoGroup(res);
@@ -301,10 +347,85 @@ public:
 		return groupResponse;
 	}
 
-	XinfoParseResponse getGroupConsumerInfo()
+	std::vector<DistributedTask::XInfoConsumer> getGroupConsumerInfo()
 	{
 		auto res = redis.command("xinfo", "consumers", inputStreamName, groupName);
-		auto xinfoconsumerResponse = parseXinfoGroupConsumer(res);
-		return xinfoconsumerResponse;
+		auto xinfoconsumerParseResponse = parseXinfoGroupConsumer(res);
+		auto xinfoConsumerResponse = parseXinfoConsumerResponse(xinfoconsumerParseResponse, groupName);
+		return xinfoConsumerResponse;
+	}
+
+	bool consumerExists(){
+		auto consumerInfo = getGroupConsumerInfo();
+		bool exists = false;
+
+		for(const auto & e: consumerInfo){
+			if (e.consumerName== consumerName ){
+				exists = true;
+				
+			}
+		}
+		return exists;
+	}
+
+	bool groupExists(){
+		auto consumerInfo = getGroupInfo();
+
+		bool exists = false;
+
+		for(const auto & e: consumerInfo){
+			if (e.groupName== groupName ){
+				exists = true;
+				
+			}
+		}
+		return exists;
+	}
+
+
+
+	bool streamExists(const std::string & streamName){
+
+		try{
+			auto res = redis.type(streamName);
+			if(res!="stream"){
+				fmt::print("input key is not a stream but '{}'\n", res);
+				return false;
+			}else{
+				return true;
+			}
+		}catch(const std::exception & e){
+			fmt::print("Exception at redis type: {}", e.what());
+		}
+
+		return false;
+	}
+
+	std::string getConsumeName(){
+		std::string consumerName = taskName;
+		auto hostInfo = getHostInfo();
+		
+	
+	}
+
+
+
+	void initialize(){
+		
+		if (!streamExists(inputStreamName)){
+			fmt::print("Task {} does not exists\n", taskName);
+			redis.xgroup_create(inputStreamName, groupName, "$",true);
+		}else if (!groupExists()){
+			fmt::print("Group {} does not exists\n", groupName);
+			redis.xgroup_create(inputStreamName, groupName, "$");
+		}
+
 	}
 };
+
+
+// inputStreamName => last dependent task + _output
+// groupName => Task Name
+// Consumer Name => unique arbritarary consumer name ?  taskname + _consumer
+// outputStreamName => taskname + _output
+// errorStreamName 

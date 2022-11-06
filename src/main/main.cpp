@@ -14,6 +14,10 @@
 
 #include "task.h"
 
+#include <unistd.h>
+
+#include "hostinfo.h"
+
 namespace RedisNS = sw::redis;
 
 auto main(int argc, char *argv[]) -> int
@@ -52,28 +56,40 @@ auto main(int argc, char *argv[]) -> int
 
 	// }
 
-	std::string taskName = "task1";
+
+	
+
+	std::string taskName = "task12";
 	std::string dependentTask = "inputtask";
 
 	Task task(redis, taskName, dependentTask);
 
-	// task.consume(1);
-	auto res = task.getGroupInfo();
-	
-	fmt::print("Xinfo group respinse: \n{}\n", res);
-	
-	auto consumers = task.getGroupConsumerInfo();
-	
 
-	// std::transform(consumers.begin(), consumers.end(),)
-	std::vector<std::string> names;
-	std::transform(consumers.begin(), consumers.end(), std::back_inserter(names), [](const std::vector<std::pair<std::string, std::string>> &e)
-				   { return e[0].second; });
+	// const int HOSTNAME_MAX = 150;
 
-	for (const auto &e : names)
-	{
-		fmt::print("name: {}\n", e);
+	// char hostnameBuffer[HOSTNAME_MAX];
+	// gethostname(hostnameBuffer, HOSTNAME_MAX);
+
+	// char hostLoginBuffer[HOSTNAME_MAX];
+	// getlogin_r(hostLoginBuffer, HOSTNAME_MAX);
+
+
+	// std::string hostname = hostnameBuffer;
+	// std::string hostLogin = hostLoginBuffer;
+
+	// fmt::print("Your host name is: {}\nYour login name: {}\n", hostname, hostLogin);
+
+	auto hostInfo = getHostInfo();
+
+
+	fmt::print("Here is the info: {}", hostInfo);
+
+	auto split = Utilities::splitString(hostInfo.hostName, '-');
+	for(const auto & e: split){
+		fmt::print("Token: {}\n", e);
+		
 	}
+	
 
 
 	return 0;
