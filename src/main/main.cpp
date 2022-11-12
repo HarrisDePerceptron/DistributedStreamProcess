@@ -56,40 +56,20 @@ auto main(int argc, char *argv[]) -> int
 
 	// }
 
-
-	
-
-	std::string taskName = "task12";
+	std::string taskName = "task1";
 	std::string dependentTask = "inputtask";
+	std::string consumerName = "c2";
 
-	Task task(redis, taskName, dependentTask);
+	Task task(redis, taskName, dependentTask, consumerName );
 
-
-	// const int HOSTNAME_MAX = 150;
-
-	// char hostnameBuffer[HOSTNAME_MAX];
-	// gethostname(hostnameBuffer, HOSTNAME_MAX);
-
-	// char hostLoginBuffer[HOSTNAME_MAX];
-	// getlogin_r(hostLoginBuffer, HOSTNAME_MAX);
-
-
-	// std::string hostname = hostnameBuffer;
-	// std::string hostLogin = hostLoginBuffer;
-
-	// fmt::print("Your host name is: {}\nYour login name: {}\n", hostname, hostLogin);
-
-	auto hostInfo = getHostInfo();
-
-
-	fmt::print("Here is the info: {}", hostInfo);
-
-	auto split = Utilities::splitString(hostInfo.hostName, '-');
-	for(const auto & e: split){
-		fmt::print("Token: {}\n", e);
-		
-	}
+	task.addCallback([](const DistributedTask::StreamMessage& msg){
+			fmt::print("recevied message {}\n", msg.messageId);
+			
+	});
 	
+	task.consume(1);
+	
+
 
 
 	return 0;

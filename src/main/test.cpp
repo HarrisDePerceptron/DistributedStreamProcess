@@ -1,40 +1,36 @@
 
 
-
 #include <iostream>
 #include <vector>
 #include <unordered_map>
 
+#include <algorithm>
 
-int main(int argc, char *argv[]){
+bool is_number(const std::string &s)
+{
+
+	auto begin = s.begin();
+	if (*begin == '-')
+	{
+		begin++;
+	}
+
+	return !s.empty() && std::find_if(begin,
+									  s.end(), [](unsigned char c)
+									  { return !std::isdigit(c); }) == s.end();
+}
+
+
+int main(int argc, char *argv[])
+{
 	std::ios::sync_with_stdio(false);
 
-	std::cout<<"hello world"<<std::endl;
+	std::cout << "hello world" << std::endl;
 
+	std::string s = "123.0";
 
-	std::vector<std::string> names = {"hamza", "haider", "hassan"};
-	
-	std::vector<std::string>::iterator it;
-	
-	for(it=names.begin(); it!=names.end();it++){
-		std::cout<<*it<<std::endl;
+	std::cout<<is_number(s)<<"\n";
 
-	}
-
-
-	std::unordered_map<std::string, int> ages = {
-		{"harris", 28},
-		{"hamza", 24},
-		{"hassan", 18}
-	};
-
-	std::unordered_map<std::string, int>::iterator itO;
-	for(itO=ages.begin();itO!=ages.end();itO++){
-		std::cout<<itO->first<<": "<<itO->second<<std::endl;
-
-	}
-
-	
 
 	return 0;
 }

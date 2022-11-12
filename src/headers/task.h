@@ -11,6 +11,8 @@
 #include "task_response.h"
 #include "hostinfo.h"
 
+#include <functional>
+
 namespace RedisNS = sw::redis;
 
 using Attrs = std::vector<std::pair<std::string, std::string>>;
@@ -18,6 +20,8 @@ using Item = std::pair<std::string, RedisNS::Optional<Attrs>>;
 using ItemStream = std::vector<Item>;
 
 using GroupReadResult = std::unordered_map<std::string, ItemStream>;
+
+using TaskCallback = std::function<void(const DistributedTask::StreamMessage &)>;
 
 class Task
 {
@@ -31,6 +35,8 @@ private:
 	std::string groupName;
 
 	std::string consumerName;
+
+	std::vector<TaskCallback> callbacks;
 
 	RedisNS::Redis &redis;
 
@@ -194,7 +200,7 @@ private:
 		return response;
 	}
 
-	std::vector<DistributedTask::XInfoConsumer> parseXinfoConsumerResponse(const XinfoParseResponse &raw, const std::string & groupName)
+	std::vector<DistributedTask::XInfoConsumer> parseXinfoConsumerResponse(const XinfoParseResponse &raw, const std::string &groupName)
 	{
 		std::vector<DistributedTask::XInfoConsumer> response;
 
@@ -202,12 +208,12 @@ private:
 		{
 			DistributedTask::XInfoConsumer res;
 			res.groupName = groupName;
-			
+
 			for (const auto &attr : groups)
 			{
 				const auto &key = attr.first;
 				const auto &value = attr.second;
-				
+
 				std::string kl = "";
 
 				std::transform(key.begin(), key.end(), std::back_inserter(kl), [](const char &c)
@@ -240,7 +246,7 @@ public:
 	Task &operator=(const Task &) = delete;
 	Task &operator=(const Task &&) = delete;
 
-	Task(RedisNS::Redis &_redis, const std::string _taskName, const std::string _dependentTask) : redis{_redis}
+	Task(RedisNS::Redis &_redis, const std::string _taskName, const std::string _dependentTask, const std::string _consumerName) : redis{_redis}
 	{
 		this->taskName = _taskName;
 		this->dependentTask = _dependentTask;
@@ -250,7 +256,8 @@ public:
 		this->errorOutputStream = this->taskName + "_error";
 
 		this->groupName = this->taskName;
-		this->consumerName = this->taskName + "_consumer";
+
+		this->consumerName = _consumerName;
 
 		initialize();
 	}
@@ -267,12 +274,15 @@ public:
 		redis.xadd(outputStreamName, streamId, data.begin(), data.end());
 	}
 
-	DistributedTask::StreamMessage parseReadGroup(const GroupReadResult &result)
+	std::vector<DistributedTask::StreamMessage> parseReadGroup(const GroupReadResult &result)
 	{
-		DistributedTask::StreamMessage so;
+		std::vector<DistributedTask::StreamMessage> streamMessages;
 
 		for (const auto &e : result)
 		{
+			DistributedTask::StreamMessage so;
+			so.group = groupName;
+			so.consumer = consumerName;
 			so.streamName = e.first;
 
 			for (const auto &si : e.second)
@@ -280,9 +290,11 @@ public:
 				so.messageId = si.first;
 				so.data = si.second.value();
 			}
+
+			streamMessages.push_back(so);
 		}
 
-		return so;
+		return streamMessages;
 	}
 
 	void ackknowledgeStreamMesssage(const std::string &streamId)
@@ -290,7 +302,7 @@ public:
 		redis.xack(inputStreamName, groupName, streamId);
 	}
 
-	DistributedTask::StreamMessage readNewGroupMessages(long long count, unsigned int waitDuration)
+	std::vector<DistributedTask::StreamMessage> readNewGroupMessages(long long count, unsigned int waitDuration)
 	{
 		GroupReadResult result;
 		std::chrono::milliseconds wait{waitDuration};
@@ -308,7 +320,7 @@ public:
 		return streamMessage;
 	}
 
-	DistributedTask::StreamMessage readPendingGroupMessages(long long count, unsigned int waitDurationMillis)
+	std::vector<DistributedTask::StreamMessage> readPendingGroupMessages(long long count, unsigned int waitDurationMillis)
 	{
 		GroupReadResult result;
 		std::chrono::milliseconds wait{waitDurationMillis};
@@ -319,22 +331,97 @@ public:
 		}
 		catch (const std::exception &e)
 		{
-			fmt::print("Error: {}\n", e.what());
+			fmt::print("[Error] [ReadPending] {}\n", e.what());
 		}
 
 		auto streamMessage = parseReadGroup(result);
 		return streamMessage;
 	}
 
+	void consumePending(long long count)
+	{
+
+		auto currentConsumerInfo = getCurrentConsumerInfo();
+		if (currentConsumerInfo ==nullptr)
+		{
+			fmt::print("No consumer at the moment. wait for a message to received");
+			return;	
+		}
+
+		fmt::print("Total pending messages: {}\n", currentConsumerInfo->pending);
+
+		long long int totalBatches = currentConsumerInfo->pending / count;
+		fmt::print("Total pending batches: {}\n", totalBatches);
+
+		for (long long int i = 0; i < totalBatches; i++)
+		{
+			try
+			{
+
+				const auto pendingMessages = readPendingGroupMessages(count, 500);
+				for (const auto &streamMessage : pendingMessages)
+				{
+					try
+					{
+						for (const auto &e : callbacks)
+						{
+							e(streamMessage);
+							ackknowledgeStreamMesssage(streamMessage.messageId);
+						}
+					}
+					catch (const std::exception &exx)
+					{
+						fmt::print("[Error] [ConsumePending] [StreamMessage] {}\n", exx.what());
+					}
+				}
+			}
+			catch (const std::exception &ex)
+			{
+				fmt::print("[Error] [ConsumePending] {}\n", ex.what());
+			}
+		}
+	}
+
 	void consume(long long count)
 	{
+		consumePending(count);
+
 		while (true)
 		{
-			GroupReadResult result;
-			auto streamMessage = readNewGroupMessages(count, 500);
+			std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-			fmt::print("Stream Message: \n {}", streamMessage);
-			std::this_thread::sleep_for(std::chrono::milliseconds(500));
+			try
+			{
+				auto streamMessages = readNewGroupMessages(count, 500);
+
+				for (const auto &streamMessage : streamMessages)
+				{
+
+					try
+					{
+						if (streamMessage.messageId == "")
+						{
+							continue;
+						}
+
+						for (const auto &e : callbacks)
+						{
+							e(streamMessage);
+						}
+
+						fmt::print("Stream Message: \n {}", streamMessage);
+						// ackknowledgeStreamMesssage(streamMessage.messageId);
+					}
+					catch (const std::exception &ex)
+					{
+						fmt::print("[ERROR] [CONSUMER] [StreamMessage] {}\n", ex.what());
+					}
+				}
+			}
+			catch (const std::exception &e)
+			{
+				fmt::print("[ERROR] [CONSUME] {}\n", e.what());
+			}
 		}
 	}
 
@@ -355,77 +442,113 @@ public:
 		return xinfoConsumerResponse;
 	}
 
-	bool consumerExists(){
+	bool consumerExists()
+	{
 		auto consumerInfo = getGroupConsumerInfo();
 		bool exists = false;
 
-		for(const auto & e: consumerInfo){
-			if (e.consumerName== consumerName ){
+		for (const auto &e : consumerInfo)
+		{
+			if (e.consumerName == consumerName)
+			{
 				exists = true;
-				
 			}
 		}
 		return exists;
 	}
 
-	bool groupExists(){
+	bool groupExists()
+	{
 		auto consumerInfo = getGroupInfo();
 
 		bool exists = false;
 
-		for(const auto & e: consumerInfo){
-			if (e.groupName== groupName ){
+		for (const auto &e : consumerInfo)
+		{
+			if (e.groupName == groupName)
+			{
 				exists = true;
-				
 			}
 		}
 		return exists;
 	}
 
+	bool streamExists(const std::string &streamName)
+	{
 
-
-	bool streamExists(const std::string & streamName){
-
-		try{
+		try
+		{
 			auto res = redis.type(streamName);
-			if(res!="stream"){
+			if (res != "stream")
+			{
 				fmt::print("input key is not a stream but '{}'\n", res);
 				return false;
-			}else{
+			}
+			else
+			{
 				return true;
 			}
-		}catch(const std::exception & e){
+		}
+		catch (const std::exception &e)
+		{
 			fmt::print("Exception at redis type: {}", e.what());
 		}
 
 		return false;
 	}
 
-	std::string getConsumeName(){
-		std::string consumerName = taskName;
+	std::string getConsumerName()
+	{
+		std::string finalConsumerName = taskName;
 		auto hostInfo = getHostInfo();
-		
-	
+		finalConsumerName += "_" + hostInfo.hostName;
+		finalConsumerName += "_" + this->consumerName;
+		return finalConsumerName;
 	}
 
+	std::unique_ptr<DistributedTask::XInfoConsumer> getCurrentConsumerInfo()
+	{
+		auto consumerInfos = getGroupConsumerInfo();
+		for (const auto &e : consumerInfos)
+		{
+			if (e.consumerName == consumerName)
+			{
+				auto response = std::make_unique<DistributedTask::XInfoConsumer>(e);
+				return response;
+			}
+		}
 
+		return nullptr;
+	}
 
-	void initialize(){
-		
-		if (!streamExists(inputStreamName)){
+	void addCallback(const TaskCallback &callback)
+	{
+		callbacks.push_back(callback);
+	}
+	void initialize()
+	{
+
+		this->consumerName = getConsumerName();
+		fmt::print("Consumer name is {}\n", this->consumerName);
+
+		if (!streamExists(inputStreamName))
+		{
 			fmt::print("Task {} does not exists\n", taskName);
-			redis.xgroup_create(inputStreamName, groupName, "$",true);
-		}else if (!groupExists()){
+			redis.xgroup_create(inputStreamName, groupName, "$", true);
+		}
+		else if (!groupExists())
+		{
 			fmt::print("Group {} does not exists\n", groupName);
 			redis.xgroup_create(inputStreamName, groupName, "$");
 		}
 
+		auto consumerInfo = getGroupConsumerInfo();
+		fmt::print("Total consumers: {}\n", consumerInfo.size());
 	}
 };
-
 
 // inputStreamName => last dependent task + _output
 // groupName => Task Name
 // Consumer Name => unique arbritarary consumer name ?  taskname + _consumer
 // outputStreamName => taskname + _output
-// errorStreamName 
+// errorStreamName

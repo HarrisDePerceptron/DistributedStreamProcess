@@ -5,6 +5,10 @@
 #include <fstream>
 #include <sstream>
 
+#include<algorithm>
+
+
+
 namespace Utilities
 {
 
@@ -52,5 +56,18 @@ namespace Utilities
         }
 
         return seglist;
+    }
+
+    bool is_number(const std::string &s)
+    {
+
+        auto begin = s.begin();
+        if (*begin=='-'){
+            begin++;
+        }
+
+        return !s.empty() && std::find_if(begin,
+                                          s.end(), [](unsigned char c)
+                                          { return !std::isdigit(c); }) == s.end();
     }
 }
