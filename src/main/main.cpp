@@ -18,6 +18,8 @@
 
 #include "hostinfo.h"
 
+#include <type_traits>
+
 namespace RedisNS = sw::redis;
 
 auto main(int argc, char *argv[]) -> int
@@ -62,9 +64,18 @@ auto main(int argc, char *argv[]) -> int
 
 	Task task(redis, taskName, dependentTask, consumerName );
 
-	task.addCallback([](const DistributedTask::StreamMessage& msg){
+	TaskCallback callback = [](const DistributedTask::StreamMessage& msg){
 			fmt::print("recevied message {}\n", msg.messageId);
 			
+	};
+
+
+	task.addCallback(callback);
+
+
+	task.addCallback([](const DistributedTask::StreamMessage& msg){
+			fmt::print("recevied message2 {}\n", msg.messageId);
+			// throw std::runtime_error{"Random error in callback"};			
 	});
 	
 	task.consume(1);

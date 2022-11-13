@@ -291,7 +291,10 @@ public:
 				so.data = si.second.value();
 			}
 
-			streamMessages.push_back(so);
+			if (so.messageId != "")
+			{
+				streamMessages.push_back(so);
+			}
 		}
 
 		return streamMessages;
@@ -327,6 +330,7 @@ public:
 
 		try
 		{
+
 			redis.xreadgroup(groupName, consumerName, inputStreamName, "0", wait, count, std::inserter(result, result.end()));
 		}
 		catch (const std::exception &e)
@@ -338,14 +342,19 @@ public:
 		return streamMessage;
 	}
 
+	std::string getErrorStream()
+	{
+		return errorOutputStream;
+	}
+
 	void consumePending(long long count)
 	{
 
 		auto currentConsumerInfo = getCurrentConsumerInfo();
-		if (currentConsumerInfo ==nullptr)
+		if (currentConsumerInfo == nullptr)
 		{
 			fmt::print("No consumer at the moment. wait for a message to received");
-			return;	
+			return;
 		}
 
 		fmt::print("Total pending messages: {}\n", currentConsumerInfo->pending);
@@ -353,21 +362,37 @@ public:
 		long long int totalBatches = currentConsumerInfo->pending / count;
 		fmt::print("Total pending batches: {}\n", totalBatches);
 
-		for (long long int i = 0; i < totalBatches; i++)
+		while (true)
 		{
+			std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
 			try
 			{
 
 				const auto pendingMessages = readPendingGroupMessages(count, 500);
+				if (pendingMessages.size() == 0)
+				{
+					fmt::print("No more pending messages...\n");
+					break;
+				}
 				for (const auto &streamMessage : pendingMessages)
 				{
 					try
 					{
-						for (const auto &e : callbacks)
+
+						try
 						{
-							e(streamMessage);
-							ackknowledgeStreamMesssage(streamMessage.messageId);
+							for (const auto &e : callbacks)
+							{
+								e(streamMessage);
+							}
 						}
+						catch (const std::exception &exxx)
+						{
+							fmt::print("[Error] [ConsumePending] [Callback] {}\n", exxx.what());
+						}
+
+						ackknowledgeStreamMesssage(streamMessage.messageId);
 					}
 					catch (const std::exception &exx)
 					{
@@ -404,13 +429,20 @@ public:
 							continue;
 						}
 
-						for (const auto &e : callbacks)
+						try
 						{
-							e(streamMessage);
+							for (const auto &e : callbacks)
+							{
+								e(streamMessage);
+							}
+						}
+						catch (const std::exception exxx)
+						{
+							fmt::print("[ERROR] [CONSUMER] [Callback] {}\n", exxx.what());
 						}
 
 						fmt::print("Stream Message: \n {}", streamMessage);
-						// ackknowledgeStreamMesssage(streamMessage.messageId);
+						ackknowledgeStreamMesssage(streamMessage.messageId);
 					}
 					catch (const std::exception &ex)
 					{
@@ -521,10 +553,16 @@ public:
 		return nullptr;
 	}
 
-	void addCallback(const TaskCallback &callback)
+	void addCallback(TaskCallback &callback)
+	{
+		callbacks.push_back(std::move(callback));
+	}
+
+	void addCallback(TaskCallback &&callback)
 	{
 		callbacks.push_back(callback);
 	}
+
 	void initialize()
 	{
 
