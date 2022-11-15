@@ -22,6 +22,7 @@ locality restictions for hosts
 - [x] C++ 17 (redis)
 - [ ] Python
 - [ ] Rust
+- [ ] Javascript
 
 ### TODO
 - [x] Establish an interface to redis using C++ 17
@@ -41,5 +42,7 @@ locality restictions for hosts
 - [ ] Web based visualization tools for tasks
 
 
+#### Package Managers
+- Conan
 ### Author:
 - Muhamad Harris (harris.perceptron@gmail.com)
