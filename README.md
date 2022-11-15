@@ -1,0 +1,41 @@
+## Distributed Task Processing
+
+Distributed task aims at solving task execution in a distributed fashion where one task can 
+process the output of a previous task using any programming language deployed with no 
+locality restictions for hosts
+
+
+
+### Goals 
+- Provide a simple interface to consume and process input data
+- Provide a simple producer interface to publish data to be processed
+- Language agnostic processing
+- Multiple programing languages can process the input data in parallel in publish the results
+- Near real time consumption of data
+
+
+### Supported Adapters:
+- Redis (streams)
+
+
+### Support Languages
+- C++ 17 (redis)
+
+### TODO
+- [x] Establish an interface to redis using C++ 17
+- [x] Basic Stream datastructures creation
+- [x] Stream, groups and consumer information gathering
+- [x] Consumption interface for processing pending and new messages
+- [ ] Result publishing to output
+- [ ] Error publishing to error output
+- [ ] Stream length control mechnism
+- [ ] Concurrency support for stream processing
+- [ ] Reclaim pending messages from consumer if they exceed some idle time
+- [ ] Collect processing errors by consumer given the data
+- [ ] Reprocess error messages within given retries
+- [ ] Library packaging and publishing 
+- [ ] Web based visualization tools for tasks
+
+
+### Author:
+- Muhamad Harris (harris.perceptron@gmail.com)
