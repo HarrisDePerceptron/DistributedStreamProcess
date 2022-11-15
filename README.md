@@ -19,7 +19,9 @@ locality restictions for hosts
 
 
 ### Support Languages
-- C++ 17 (redis)
+- [x] C++ 17 (redis)
+- [ ] Python
+- [ ] Rust
 
 ### TODO
 - [x] Establish an interface to redis using C++ 17
@@ -29,6 +31,8 @@ locality restictions for hosts
 - [ ] Result publishing to output
 - [ ] Error publishing to error output
 - [ ] Stream length control mechnism
+- [ ] Write examples for Readme
+- [ ] Illistrations/Diagrams for Readme
 - [ ] Concurrency support for stream processing
 - [ ] Reclaim pending messages from consumer if they exceed some idle time
 - [ ] Collect processing errors by consumer given the data
