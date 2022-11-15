@@ -42,6 +42,19 @@ locality restictions for hosts
 - [ ] Web based visualization tools for tasks
 
 
+
+
+
+### Installing
+TODO
+
+
+#### Dependencies
+- redis++ 
+- fmt
+- spdlog
+
+
 #### Package Managers
 - Conan
 ### Author:
