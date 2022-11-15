@@ -38,11 +38,11 @@ locality restictions for hosts
 - [ ] Reclaim pending messages from consumer if they exceed some idle time
 - [ ] Collect processing errors by consumer given the data
 - [ ] Reprocess error messages within given retries
-- [ ] Library packaging and publishing 
+- [ ] Explore better cpp templates
+- [ ] Library packaging and publishing
+- [ ] Setup CI/DI pipeline for builds
+- [ ] Setup semantic versioning
 - [ ] Web based visualization tools for tasks
-
-
-
 
 
 ### Installing
