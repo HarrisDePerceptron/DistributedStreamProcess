@@ -96,16 +96,12 @@ int main(int argc, char *argv[])
 
 	std::cout << "hello world" << std::endl;
 	
-	Test t1;
-
-	// fun3(t1);
-
-
-	fun3(Test{});
-
-	std::cout << "After fun\n";
-
-	std::cout<<"i: "<<t1.i<<"\n";
-
+	std::vector<std::pair<std::string, std::string>> attrs;
+	attrs.push_back(
+		{"hello", "world"}
+	);
+	attrs.push_back(
+		{"hello", "world"}
+	);
 	return 0;
 }

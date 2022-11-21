@@ -66,22 +66,67 @@ auto main(int argc, char *argv[]) -> int
 
 	TaskCallback callback = [](const DistributedTask::StreamMessage& msg){
 			fmt::print("recevied message {}\n", msg.messageId);
+			std::vector<std::pair<std::string, std::string>> res;
+			std::copy_if(msg.data.begin(), msg.data.end(), std::back_inserter(res), [](const std::pair<std::string, std::string> & kv){
+					if(kv.first == "n1"){
+						return true;
+					}
+
+					if(kv.first == "n2"){
+						return true;
+					}
+
+					return false;					
+			});
 			
+			Attrs response;
+
+			if (res.size()>= 2){
+
+				int a = std::stoi(res[0].second);
+				int b = std::stoi(res[1].second);
+				
+				auto sum = a+b;
+				
+				std::string output = std::to_string(sum);
+
+				response.push_back(
+					{"output", output}
+				);
+			}
+			return response;
 	};
-
-
-	task.addCallback(callback);
-
 
 	task.addCallback([](const DistributedTask::StreamMessage& msg){
 			fmt::print("recevied message2 {}\n", msg.messageId);
-			// throw std::runtime_error{"Random error in callback"};			
+			throw std::runtime_error{"Random error in callback"};
+			Attrs response;
+			return response;
 	});
+
+	// task.addCallback(callback);
+
+
 	
-	task.consume(1);
+	// task.consume(1);
+
+
+	// task.sendMessage({
+	// 	{"output", "5"}
+	// });
+
+
+	// # fetch messages in a stream
+
+	// for (const auto & e: task.fetchErrorMessages(5)){
+	// 	fmt::print("Stream xrange: {}: {}\n", e.streamName, e.messageId);
+
+	// 	for (const auto &attr: e.data){
+	// 		fmt::print("{}: {}\n", attr.first, attr.second);
+	// 	}
+	// }
+
+
 	
-
-
-
 	return 0;
 }

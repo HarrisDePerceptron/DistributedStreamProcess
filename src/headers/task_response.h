@@ -13,11 +13,40 @@ namespace DistributedTask
 	{
 		std::string streamName;
 		std::string messageId;
-		std::string group;
-		std::string consumer;
 		Attrs data;
 
 		friend std::ostream &operator<<(std::ostream &os, const StreamMessage &sm)
+		{
+			os << "{ ";
+			os << "streamName: '" << sm.streamName << "', group: '"
+			   << "',\n"
+			   << "messageId: '" << sm.messageId << "',\n";
+			os << "{ ";
+			for (const auto &e : sm.data)
+			{
+				os << e.first << ": " << e.second << ", ";
+			}
+			os << "}\n";
+
+			return os;
+		}
+	};
+
+
+	struct StreamErrorMessage
+	{
+		std::string streamName;
+		std::string messageId;
+		std::string errorMessage;
+	};
+
+
+	struct StreamConsumerMessage: public StreamMessage
+	{
+		std::string group;
+		std::string consumer;
+
+		friend std::ostream &operator<<(std::ostream &os, const StreamConsumerMessage &sm)
 		{
 			os << "{ ";
 			os << "streamName: '" << sm.streamName << "', group: '" << sm.group << "', consumer: '" << sm.consumer

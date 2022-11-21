@@ -21,7 +21,7 @@ using ItemStream = std::vector<Item>;
 
 using GroupReadResult = std::unordered_map<std::string, ItemStream>;
 
-using TaskCallback = std::function<void(const DistributedTask::StreamMessage &)>;
+using TaskCallback = std::function<Attrs(const DistributedTask::StreamMessage &)>;
 
 class Task
 {
@@ -41,6 +41,8 @@ private:
 	RedisNS::Redis &redis;
 
 	int totalRetries{3};
+
+	bool outputResult{true};
 
 	using XinfoParseResponse = std::vector<std::vector<std::pair<std::string, std::string>>>;
 
@@ -262,25 +264,34 @@ public:
 		initialize();
 	}
 
-	void sendOutput(const Attrs &data)
+	std::string sendResultMessage(const Attrs &data)
 	{
 
-		redis.xadd(outputStreamName, "*", data.begin(), data.end());
+		auto messageId = sendResultMessage(data, "*");
+		return messageId;
 	}
 
-	void sendOutput(const Attrs &data, std::string streamId)
+	std::string sendResultMessage(const Attrs &data, std::string streamId)
 	{
 
-		redis.xadd(outputStreamName, streamId, data.begin(), data.end());
+		auto messageId = sendMessage(outputStreamName, data, streamId);
+		return messageId;
 	}
 
-	std::vector<DistributedTask::StreamMessage> parseReadGroup(const GroupReadResult &result)
+	std::string sendMessage(const std::string & streamName, const Attrs &data, std::string streamId)
 	{
-		std::vector<DistributedTask::StreamMessage> streamMessages;
+
+		auto messageId = redis.xadd(streamName, streamId, data.begin(), data.end());
+		return messageId;
+	}
+
+	std::vector<DistributedTask::StreamConsumerMessage> parseReadGroup(const GroupReadResult &result)
+	{
+		std::vector<DistributedTask::StreamConsumerMessage> streamMessages;
 
 		for (const auto &e : result)
 		{
-			DistributedTask::StreamMessage so;
+			DistributedTask::StreamConsumerMessage so;
 			so.group = groupName;
 			so.consumer = consumerName;
 			so.streamName = e.first;
@@ -305,7 +316,7 @@ public:
 		redis.xack(inputStreamName, groupName, streamId);
 	}
 
-	std::vector<DistributedTask::StreamMessage> readNewGroupMessages(long long count, unsigned int waitDuration)
+	std::vector<DistributedTask::StreamConsumerMessage> readNewGroupMessages(long long count, unsigned int waitDuration)
 	{
 		GroupReadResult result;
 		std::chrono::milliseconds wait{waitDuration};
@@ -323,7 +334,7 @@ public:
 		return streamMessage;
 	}
 
-	std::vector<DistributedTask::StreamMessage> readPendingGroupMessages(long long count, unsigned int waitDurationMillis)
+	std::vector<DistributedTask::StreamConsumerMessage> readPendingGroupMessages(long long count, unsigned int waitDurationMillis)
 	{
 		GroupReadResult result;
 		std::chrono::milliseconds wait{waitDurationMillis};
@@ -407,6 +418,50 @@ public:
 		}
 	}
 
+	void consumeMessage(const TaskCallback &tcb, const DistributedTask::StreamConsumerMessage &streamMessage)
+	{
+
+		try
+		{
+			auto res = tcb(streamMessage);
+			if (res.size() > 0)
+			{
+				sendResultMessage(res);
+			}
+		}
+		catch (const std::exception &exxx)
+		{
+			fmt::print("[ERROR] [CONSUMER] [Callback] {}\n", exxx.what());
+		}
+	}
+
+	void consumeMessages(const std::vector<DistributedTask::StreamConsumerMessage> &streamMessages)
+	{
+		for (const auto &streamMessage : streamMessages)
+		{
+
+			try
+			{
+				if (streamMessage.messageId == "")
+				{
+					continue;
+				}
+
+				for (const auto &e : callbacks)
+				{
+					consumeMessage(e, streamMessage);
+				}
+
+				fmt::print("Stream Message: \n {}", streamMessage);
+				ackknowledgeStreamMesssage(streamMessage.messageId);
+			}
+			catch (const std::exception &ex)
+			{
+				fmt::print("[ERROR] [CONSUMER] [StreamMessage] {}\n", ex.what());
+			}
+		}
+	}
+
 	void consume(long long count)
 	{
 		consumePending(count);
@@ -418,37 +473,7 @@ public:
 			try
 			{
 				auto streamMessages = readNewGroupMessages(count, 500);
-
-				for (const auto &streamMessage : streamMessages)
-				{
-
-					try
-					{
-						if (streamMessage.messageId == "")
-						{
-							continue;
-						}
-
-						try
-						{
-							for (const auto &e : callbacks)
-							{
-								e(streamMessage);
-							}
-						}
-						catch (const std::exception exxx)
-						{
-							fmt::print("[ERROR] [CONSUMER] [Callback] {}\n", exxx.what());
-						}
-
-						fmt::print("Stream Message: \n {}", streamMessage);
-						ackknowledgeStreamMesssage(streamMessage.messageId);
-					}
-					catch (const std::exception &ex)
-					{
-						fmt::print("[ERROR] [CONSUMER] [StreamMessage] {}\n", ex.what());
-					}
-				}
+				consumeMessages(streamMessages);
 			}
 			catch (const std::exception &e)
 			{
@@ -583,6 +608,110 @@ public:
 		auto consumerInfo = getGroupConsumerInfo();
 		fmt::print("Total consumers: {}\n", consumerInfo.size());
 	}
+
+	std::vector<DistributedTask::StreamMessage> fetchMessages(long long int count)
+	{
+
+		auto result = fetchMessages("-", "+", count);
+		return result;
+	}
+
+	std::vector<DistributedTask::StreamMessage> fetchMessages(const std::string &startMessageId, long long int count)
+	{
+
+		auto result = fetchMessages(startMessageId, "+", count);
+		return result;
+	}
+
+	std::vector<DistributedTask::StreamMessage> fetchMessages(const std::string &startMessageId, const std::string &endMessageId, long long int count)
+	{
+		auto result = fetcStreamhMessages(inputStreamName, startMessageId, endMessageId, count);
+		return result;		
+	}
+
+	std::vector<DistributedTask::StreamMessage> fetchOutputMessages(long long int count)
+	{
+		auto result = fetchOutputMessages( "-", "+", count);
+		return result;		
+	}
+
+	std::vector<DistributedTask::StreamMessage> fetchOutputMessages(const std::string &startMessageId,  long long int count)
+	{
+		auto result = fetchOutputMessages( startMessageId, "+", count);
+		return result;		
+	}
+
+	std::vector<DistributedTask::StreamMessage> fetchOutputMessages(const std::string &startMessageId, const std::string &endMessageId, long long int count)
+	{
+		auto result = fetcStreamhMessages( outputStreamName, startMessageId, endMessageId, count);
+		return result;		
+	}
+
+	std::vector<DistributedTask::StreamMessage> fetchErrorMessages(long long int count)
+	{
+		auto result = fetchErrorMessages( "-", "+", count);
+		return result;		
+	}
+
+	std::vector<DistributedTask::StreamMessage> fetchErrorMessages( const std::string &startMessageId, long long int count)
+	{
+		auto result = fetchErrorMessages( startMessageId, "+", count);
+		return result;		
+	}
+
+	std::vector<DistributedTask::StreamMessage> fetchErrorMessages(const std::string &startMessageId, const std::string &endMessageId, long long int count)
+	{
+		auto result = fetcStreamhMessages( errorOutputStream, startMessageId, endMessageId, count);
+		return result;		
+	}
+
+	std::vector<DistributedTask::StreamMessage> fetcStreamhMessages(const std::string streamName,const std::string &startMessageId, const std::string &endMessageId, long long int count)
+	{
+
+		ItemStream is;
+		redis.xrange(streamName, startMessageId, endMessageId, count, std::back_inserter(is));
+
+		std::vector<DistributedTask::StreamMessage> messages;
+		for (const auto &e : is)
+		{
+
+			const auto &messageId = e.first;
+			if (!e.second)
+			{
+				continue;
+			}
+
+			DistributedTask::StreamMessage message;
+
+			const auto &attrs = *e.second;
+
+			message.messageId = std::move(messageId);
+			message.streamName = streamName;
+
+			message.data = std::move(attrs);
+			messages.push_back(std::move(message));
+
+		}
+		return messages;
+	}
+
+	Attrs serializeErrorMessage (const DistributedTask::StreamErrorMessage & err){
+		Attrs attrs = {
+			{"errorMessage", err.errorMessage},
+			{"messageId", err.messageId},
+			{"streamName", err.streamName}
+		};
+		
+		return attrs;				
+	}
+
+
+	void sendErrorMessage(const DistributedTask::StreamErrorMessage & err){
+		auto serializedMessage = serializeErrorMessage(err);
+		sendMessage(errorOutputStream, serializedMessage, "*");
+
+	}	
+
 };
 
 // inputStreamName => last dependent task + _output

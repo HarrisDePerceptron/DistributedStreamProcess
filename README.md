@@ -29,7 +29,7 @@ locality restictions for hosts
 - [x] Basic Stream datastructures creation
 - [x] Stream, groups and consumer information gathering
 - [x] Consumption interface for processing pending and new messages
-- [ ] Result publishing to output
+- [x] Result publishing to output
 - [ ] Error publishing to error output
 - [ ] Stream length control mechnism
 - [ ] Write examples for Readme
