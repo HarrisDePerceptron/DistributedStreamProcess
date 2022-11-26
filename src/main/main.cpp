@@ -22,6 +22,7 @@
 
 namespace RedisNS = sw::redis;
 
+
 auto main(int argc, char *argv[]) -> int
 {
 
@@ -37,26 +38,6 @@ auto main(int argc, char *argv[]) -> int
 	// connopts.socket_timeout = std::chrono::milliseconds(1000);
 
 	RedisNS::Redis redis{connopts};
-
-	// Attrs data = {{"language", "c#"}, {"loc", "500"}};
-
-	// auto streamRes = redis.xadd("programming", "*", data.begin(),data.end());
-
-	// std::cout<<"Got id: "<<streamRes<<std::endl;
-
-	// std::vector<Item> output;
-
-	// redis.xrange("programming","-","+", std::back_inserter(output));
-
-	// for(const auto &e: output){
-	// 	std::cout<<"timestamp: "<<e.first<<std::endl;
-
-	// 	for(auto & attr: e.second.value()){
-	// 		std::cout<<"key: "<<attr.first<<" value: "<<attr.second<<std::endl;
-
-	// 	}
-
-	// }
 
 	std::string taskName = "task1";
 	std::string dependentTask = "inputtask";
@@ -97,18 +78,21 @@ auto main(int argc, char *argv[]) -> int
 			return response;
 	};
 
-	task.addCallback([](const DistributedTask::StreamMessage& msg){
-			fmt::print("recevied message2 {}\n", msg.messageId);
-			throw std::runtime_error{"Random error in callback"};
-			Attrs response;
-			return response;
-	});
+	// task.addCallback([](const DistributedTask::StreamMessage& msg){
+	// 		fmt::print("recevied message2 {}\n", msg.messageId);
+	// 		throw std::runtime_error{"Random error in callback"};
+	// 		Attrs response;
+	// 		return response;
+	// });
 
-	// task.addCallback(callback);
+	task.addCallback(callback);
 
+	// task.produce({
+	// 	{"n1", "20"},
+	// 	{"n2", "100"}
+	// });	
+	task.consume(1);
 
-	
-	// task.consume(1);
 
 
 	// task.sendMessage({

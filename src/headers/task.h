@@ -242,47 +242,9 @@ private:
 		return response;
 	}
 
-public:
-	Task() = delete;
-	Task(const Task &&) = delete;
-	Task &operator=(const Task &) = delete;
-	Task &operator=(const Task &&) = delete;
-
-	Task(RedisNS::Redis &_redis, const std::string _taskName, const std::string _dependentTask, const std::string _consumerName) : redis{_redis}
+	void ackknowledgeStreamMesssage(const std::string &streamId)
 	{
-		this->taskName = _taskName;
-		this->dependentTask = _dependentTask;
-
-		this->inputStreamName = this->dependentTask + "_output";
-		this->outputStreamName = this->taskName + "_output";
-		this->errorOutputStream = this->taskName + "_error";
-
-		this->groupName = this->taskName;
-
-		this->consumerName = _consumerName;
-
-		initialize();
-	}
-
-	std::string sendResultMessage(const Attrs &data)
-	{
-
-		auto messageId = sendResultMessage(data, "*");
-		return messageId;
-	}
-
-	std::string sendResultMessage(const Attrs &data, std::string streamId)
-	{
-
-		auto messageId = sendMessage(outputStreamName, data, streamId);
-		return messageId;
-	}
-
-	std::string sendMessage(const std::string & streamName, const Attrs &data, std::string streamId)
-	{
-
-		auto messageId = redis.xadd(streamName, streamId, data.begin(), data.end());
-		return messageId;
+		redis.xack(inputStreamName, groupName, streamId);
 	}
 
 	std::vector<DistributedTask::StreamConsumerMessage> parseReadGroup(const GroupReadResult &result)
@@ -309,11 +271,6 @@ public:
 		}
 
 		return streamMessages;
-	}
-
-	void ackknowledgeStreamMesssage(const std::string &streamId)
-	{
-		redis.xack(inputStreamName, groupName, streamId);
 	}
 
 	std::vector<DistributedTask::StreamConsumerMessage> readNewGroupMessages(long long count, unsigned int waitDuration)
@@ -353,9 +310,25 @@ public:
 		return streamMessage;
 	}
 
-	std::string getErrorStream()
+	std::string sendResultMessage(const Attrs &data)
 	{
-		return errorOutputStream;
+
+		auto messageId = sendResultMessage(data, "*");
+		return messageId;
+	}
+
+	std::string sendResultMessage(const Attrs &data, std::string streamId)
+	{
+
+		auto messageId = sendMessage(outputStreamName, data, streamId);
+		return messageId;
+	}
+
+	std::string sendMessage(const std::string &streamName, const Attrs &data, std::string streamId)
+	{
+
+		auto messageId = redis.xadd(streamName, streamId, data.begin(), data.end());
+		return messageId;
 	}
 
 	void consumePending(long long count)
@@ -418,6 +391,15 @@ public:
 		}
 	}
 
+	DistributedTask::StreamErrorMessage formatConsumerErrorMessage(const DistributedTask::StreamConsumerMessage &streamMessage, const std::string &message)
+	{
+		DistributedTask::StreamErrorMessage errorMessage;
+		errorMessage.errorMessage = message;
+		errorMessage.messageId = streamMessage.messageId;
+		errorMessage.streamName = streamMessage.streamName;
+
+		return errorMessage;
+	}
 	void consumeMessage(const TaskCallback &tcb, const DistributedTask::StreamConsumerMessage &streamMessage)
 	{
 
@@ -431,7 +413,11 @@ public:
 		}
 		catch (const std::exception &exxx)
 		{
-			fmt::print("[ERROR] [CONSUMER] [Callback] {}\n", exxx.what());
+			const auto &message = exxx.what();
+			auto errorMessage = formatConsumerErrorMessage(streamMessage, message);
+			sendErrorMessage(errorMessage);
+
+			fmt::print("[ERROR] [CONSUMER] [Callback] {}\n", message);
 		}
 	}
 
@@ -460,6 +446,49 @@ public:
 				fmt::print("[ERROR] [CONSUMER] [StreamMessage] {}\n", ex.what());
 			}
 		}
+	}
+
+	Attrs serializeErrorMessage(const DistributedTask::StreamErrorMessage &err)
+	{
+		Attrs attrs = {
+			{"errorMessage", err.errorMessage},
+			{"messageId", err.messageId},
+			{"streamName", err.streamName}};
+
+		return attrs;
+	}
+
+	void sendErrorMessage(const DistributedTask::StreamErrorMessage &err)
+	{
+		auto serializedMessage = serializeErrorMessage(err);
+		sendMessage(errorOutputStream, serializedMessage, "*");
+	}
+
+public:
+	Task() = delete;
+	Task(const Task &&) = delete;
+	Task &operator=(const Task &) = delete;
+	Task &operator=(const Task &&) = delete;
+
+	Task(RedisNS::Redis &_redis, const std::string _taskName, const std::string _dependentTask, const std::string _consumerName) : redis{_redis}
+	{
+		this->taskName = _taskName;
+		this->dependentTask = _dependentTask;
+
+		this->inputStreamName = this->dependentTask + "_output";
+		this->outputStreamName = this->taskName + "_output";
+		this->errorOutputStream = this->taskName + "_error";
+
+		this->groupName = this->taskName;
+
+		this->consumerName = _consumerName;
+
+		initialize();
+	}
+
+	std::string getErrorStream()
+	{
+		return errorOutputStream;
 	}
 
 	void consume(long long count)
@@ -626,46 +655,46 @@ public:
 	std::vector<DistributedTask::StreamMessage> fetchMessages(const std::string &startMessageId, const std::string &endMessageId, long long int count)
 	{
 		auto result = fetcStreamhMessages(inputStreamName, startMessageId, endMessageId, count);
-		return result;		
+		return result;
 	}
 
 	std::vector<DistributedTask::StreamMessage> fetchOutputMessages(long long int count)
 	{
-		auto result = fetchOutputMessages( "-", "+", count);
-		return result;		
+		auto result = fetchOutputMessages("-", "+", count);
+		return result;
 	}
 
-	std::vector<DistributedTask::StreamMessage> fetchOutputMessages(const std::string &startMessageId,  long long int count)
+	std::vector<DistributedTask::StreamMessage> fetchOutputMessages(const std::string &startMessageId, long long int count)
 	{
-		auto result = fetchOutputMessages( startMessageId, "+", count);
-		return result;		
+		auto result = fetchOutputMessages(startMessageId, "+", count);
+		return result;
 	}
 
 	std::vector<DistributedTask::StreamMessage> fetchOutputMessages(const std::string &startMessageId, const std::string &endMessageId, long long int count)
 	{
-		auto result = fetcStreamhMessages( outputStreamName, startMessageId, endMessageId, count);
-		return result;		
+		auto result = fetcStreamhMessages(outputStreamName, startMessageId, endMessageId, count);
+		return result;
 	}
 
 	std::vector<DistributedTask::StreamMessage> fetchErrorMessages(long long int count)
 	{
-		auto result = fetchErrorMessages( "-", "+", count);
-		return result;		
+		auto result = fetchErrorMessages("-", "+", count);
+		return result;
 	}
 
-	std::vector<DistributedTask::StreamMessage> fetchErrorMessages( const std::string &startMessageId, long long int count)
+	std::vector<DistributedTask::StreamMessage> fetchErrorMessages(const std::string &startMessageId, long long int count)
 	{
-		auto result = fetchErrorMessages( startMessageId, "+", count);
-		return result;		
+		auto result = fetchErrorMessages(startMessageId, "+", count);
+		return result;
 	}
 
 	std::vector<DistributedTask::StreamMessage> fetchErrorMessages(const std::string &startMessageId, const std::string &endMessageId, long long int count)
 	{
-		auto result = fetcStreamhMessages( errorOutputStream, startMessageId, endMessageId, count);
-		return result;		
+		auto result = fetcStreamhMessages(errorOutputStream, startMessageId, endMessageId, count);
+		return result;
 	}
 
-	std::vector<DistributedTask::StreamMessage> fetcStreamhMessages(const std::string streamName,const std::string &startMessageId, const std::string &endMessageId, long long int count)
+	std::vector<DistributedTask::StreamMessage> fetcStreamhMessages(const std::string streamName, const std::string &startMessageId, const std::string &endMessageId, long long int count)
 	{
 
 		ItemStream is;
@@ -690,27 +719,17 @@ public:
 
 			message.data = std::move(attrs);
 			messages.push_back(std::move(message));
-
 		}
 		return messages;
 	}
 
-	Attrs serializeErrorMessage (const DistributedTask::StreamErrorMessage & err){
-		Attrs attrs = {
-			{"errorMessage", err.errorMessage},
-			{"messageId", err.messageId},
-			{"streamName", err.streamName}
-		};
-		
-		return attrs;				
+	void produce(const Attrs & values){
+		produce(values, "*");
 	}
+	void produce(const Attrs &values,  const std::string &streamId){
+		sendMessage(inputStreamName, values, streamId);
 
-
-	void sendErrorMessage(const DistributedTask::StreamErrorMessage & err){
-		auto serializedMessage = serializeErrorMessage(err);
-		sendMessage(errorOutputStream, serializedMessage, "*");
-
-	}	
+	}
 
 };
 

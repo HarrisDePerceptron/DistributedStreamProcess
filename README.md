@@ -19,7 +19,7 @@ locality restictions for hosts
 
 
 ### Support Languages
-- [x] C++ 17 (redis)
+- [x] C++ 17 [redis]
 - [ ] Python
 - [ ] Rust
 - [ ] Javascript
@@ -30,7 +30,7 @@ locality restictions for hosts
 - [x] Stream, groups and consumer information gathering
 - [x] Consumption interface for processing pending and new messages
 - [x] Result publishing to output
-- [ ] Error publishing to error output
+- [x] Error publishing to error output
 - [ ] Stream length control mechnism
 - [ ] Write examples for Readme
 - [ ] Illistrations/Diagrams for Readme
