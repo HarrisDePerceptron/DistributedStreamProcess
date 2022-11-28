@@ -1,144 +1,71 @@
 
 
 #include <iostream>
-#include <vector>
-#include <unordered_map>
 
-#include <algorithm>
+int grid[2] = {0};
 
-class Test
+void draw()
 {
+	char horizontal = 45;
+	char vertical = 124;
 
-public:
-	int i;
-	Test()
+	int boxWidth = 9;
+	int boxHeight = 3;
+
+	int totalBoxes = 3;
+
+	int totalCols = boxWidth * totalBoxes;
+	int totalRows = boxHeight * totalBoxes;
+
+	grid[0] = totalRows;
+	grid[1] = totalCols;
+
+	std::cout << "Pix grid: " << totalRows << " x " << totalCols << "\n";	
+
+	for (int row = 0; row < totalRows - 1; row++)
 	{
-		std::cout << "Default constructor\n";
-		i = 10;
+
+		for (int col = 0; col < totalCols - 1; col++)
+		{
+
+			int currentCol = (totalCols / totalBoxes);
+			int currentRow = (totalRows / totalBoxes);
+
+			if (row == 4 && col == 12)
+			{
+
+				std::cout << "?";
+				continue;
+			}
+
+			if ((col + 1) % currentCol == 0)
+			{
+
+				std::cout << vertical;
+				continue;
+			}
+
+			if ((row + 1) % currentRow == 0)
+			{
+				std::cout << horizontal;
+			}
+			else
+			{
+				std::cout << " ";
+			}
+		}
+
+		std::cout << "\n";
 	}
-
-	Test(const Test &t)
-	{
-		std::cout << "Copy constructor called\n";
-		i = t.i;
-	}
-
-	Test &operator=(const Test &t)
-	{
-		std::cout << "Copy assignment called\n";
-		i = t.i;
-		return *this;
-	}
-
-	Test(Test &&t)
-	{
-		std::cout << "Move constructor called\n";
-		i = std::move(t.i);
-		t.i = 0;
-	}
-
-	Test &operator=(Test &&t)
-	{
-		std::cout << "Move assignment called\n";
-		i = std::move(t.i);
-
-		t.i = 0;
-
-		return *this;
-	}
-
-	~Test()
-	{
-		std::cout << "destructor\n";
-	}
-};
-
-void fun(Test &t)
-{
-	std::cout << "In fun with non-const lvalue ref\n";
-	std::vector<Test> v;
-	v.push_back(std::move(t));
-
-	std::cout << "i: " << v[0].i << "\n";
 }
-
-void fun2(const Test t)
-{
-
-	std::cout << "In fun2 with const lvalue\n";
-}
-
-void fun3(Test &t)
-{
-	std::cout << "In fun3 with const lvalue ref\n";
-	std::vector<Test> v;
-	v.push_back(std::move(t));
-
-	std::cout << "i: " << v[0].i << "\n";
-}
-
-std::vector<Test> vv;
-void fun3(Test &&t)
-{
-	std::cout << "In fun3 with rvalue ref\n";
-	vv.push_back(std::move(t));
-
-	std::cout << "i: " << vv[0].i << "\n";
-	std::cout << "end fun3 with rvalue ref\n";
-}
-
-class TestClass
-{
-
-	int & ra;
-	int a;
-
-
-	public: 
-
-	TestClass(int & _ra, int _a): ra{_ra}, a{_a}{
-
-	}
-	void constFun() const
-	{
-		ra = 20;
-	}
-
-	void constFun2() const
-	{
-		a = 30;
-	}
-};
 
 int main(int argc, char *argv[])
 {
 	std::ios::sync_with_stdio(false);
 
-	std::cout << "hello world" << std::endl;
 
-	// std::vector<std::pair<std::string, std::string>> attrs;
-	// attrs.push_back(
-	// 	{"hello", "world"}
-	// );
-	// attrs.push_back(
-	// 	{"hello", "world"}
-	// );
-
-	int a = 10;
-	int &ra = a;
-
-	std::cout << "a: " << a << "\n";
-	
-	TestClass tc {ra, a};
-
-	tc.constFun();
-	std::cout << "a: " << a << "\n";
-
-
-	tc.constFun2();
-	std::cout << "a: " << a << "\n";
-	
-
+	draw();
+	std::cout << "\n\n\n";
 
 	return 0;
 }

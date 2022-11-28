@@ -9,9 +9,8 @@
 #include <fmt/ostream.h>
 
 #include "task_response.h"
-#include "hostinfo.h"
+#include "task"
 
-#include <functional>
 
 namespace RedisNS = sw::redis;
 
@@ -23,30 +22,24 @@ using GroupReadResult = std::unordered_map<std::string, ItemStream>;
 
 using TaskCallback = std::function<Attrs(const DistributedTask::StreamMessage &)>;
 
-using XinfoParseResponse = std::vector<std::vector<std::pair<std::string, std::string>>>;
-
-class Task
+class TaskConsumer
 {
 private:
-	std::string taskName;
 	std::string dependentTask;
 	std::string inputStreamName;
+
 	std::string outputStreamName;
 	std::string errorOutputStream;
 
 	std::string groupName;
-
 	std::string consumerName;
 
 	std::vector<TaskCallback> callbacks;
 
-	RedisNS::Redis &redis;
-
 	int totalRetries{3};
-
 	bool outputResult{true};
 
-	
+	using XinfoParseResponse = std::vector<std::vector<std::pair<std::string, std::string>>>;
 
 	XinfoParseResponse parseXInfoGroup(const RedisNS::ReplyUPtr &xinfoReply)
 	{
@@ -244,11 +237,6 @@ private:
 		return response;
 	}
 
-	void ackknowledgeStreamMesssage(const std::string &streamId)
-	{
-		redis.xack(inputStreamName, groupName, streamId);
-	}
-
 	std::vector<DistributedTask::StreamConsumerMessage> parseReadGroup(const GroupReadResult &result)
 	{
 		std::vector<DistributedTask::StreamConsumerMessage> streamMessages;
@@ -311,21 +299,6 @@ private:
 		auto streamMessage = parseReadGroup(result);
 		return streamMessage;
 	}
-
-	std::string sendResultMessage(const Attrs &data)
-	{
-
-		auto messageId = sendResultMessage(data, "*");
-		return messageId;
-	}
-
-	std::string sendResultMessage(const Attrs &data, std::string streamId)
-	{
-
-		auto messageId = sendMessage(outputStreamName, data, streamId);
-		return messageId;
-	}
-
 
 
 	void consumePending(long long count)
@@ -445,29 +418,14 @@ private:
 		}
 	}
 
-	Attrs serializeErrorMessage(const DistributedTask::StreamErrorMessage &err)
-	{
-		Attrs attrs = {
-			{"errorMessage", err.errorMessage},
-			{"messageId", err.messageId},
-			{"streamName", err.streamName}};
-
-		return attrs;
-	}
-
-	void sendErrorMessage(const DistributedTask::StreamErrorMessage &err)
-	{
-		auto serializedMessage = serializeErrorMessage(err);
-		sendMessage(errorOutputStream, serializedMessage, "*");
-	}
 
 public:
-	Task() = delete;
-	Task(const Task &&) = delete;
-	Task &operator=(const Task &) = delete;
-	Task &operator=(const Task &&) = delete;
+	TaskConsumer() = delete;
+	TaskConsumer(Task &&) = delete;
+	TaskConsumer &operator=(const Task &) = delete;
+	TaskConsumer &operator=(TaskConsumer &&) = delete;
 
-	Task(RedisNS::Redis &_redis, const std::string _taskName, const std::string _dependentTask, const std::string _consumerName) : redis{_redis}
+	TaskConsumer(, const std::string _consumerName)
 	{
 		this->taskName = _taskName;
 		this->dependentTask = _dependentTask;
@@ -484,7 +442,7 @@ public:
 	}
 
 	Task(RedisNS::Redis &_redis, const std::string _taskName, const std::string _consumerName): 
-		Task(_redis, _taskName,  _taskName + ":input", _consumerName)
+		Task(redis, _taskName,  _taskName + ":input", _consumerName)
 	{		
 
 	}
@@ -562,30 +520,6 @@ public:
 		return exists;
 	}
 
-	bool streamExists(const std::string &streamName)
-	{
-
-		try
-		{
-			auto res = redis.type(streamName);
-			if (res != "stream")
-			{
-				fmt::print("input key is not a stream but '{}'\n", res);
-				return false;
-			}
-			else
-			{
-				return true;
-			}
-		}
-		catch (const std::exception &e)
-		{
-			fmt::print("Exception at redis type: {}", e.what());
-		}
-
-		return false;
-	}
-
 	std::string getConsumerName()
 	{
 		std::string finalConsumerName = taskName;
@@ -641,107 +575,4 @@ public:
 		fmt::print("Total consumers: {}\n", consumerInfo.size());
 	}
 
-	std::vector<DistributedTask::StreamMessage> fetchMessages(long long int count)
-	{
-
-		auto result = fetchMessages("-", "+", count);
-		return result;
-	}
-
-	std::vector<DistributedTask::StreamMessage> fetchMessages(const std::string &startMessageId, long long int count)
-	{
-
-		auto result = fetchMessages(startMessageId, "+", count);
-		return result;
-	}
-
-	std::vector<DistributedTask::StreamMessage> fetchMessages(const std::string &startMessageId, const std::string &endMessageId, long long int count)
-	{
-		auto result = fetcStreamhMessages(inputStreamName, startMessageId, endMessageId, count);
-		return result;
-	}
-
-	std::vector<DistributedTask::StreamMessage> fetchOutputMessages(long long int count)
-	{
-		auto result = fetchOutputMessages("-", "+", count);
-		return result;
-	}
-
-	std::vector<DistributedTask::StreamMessage> fetchOutputMessages(const std::string &startMessageId, long long int count)
-	{
-		auto result = fetchOutputMessages(startMessageId, "+", count);
-		return result;
-	}
-
-	std::vector<DistributedTask::StreamMessage> fetchOutputMessages(const std::string &startMessageId, const std::string &endMessageId, long long int count)
-	{
-		auto result = fetcStreamhMessages(outputStreamName, startMessageId, endMessageId, count);
-		return result;
-	}
-
-	std::vector<DistributedTask::StreamMessage> fetchErrorMessages(long long int count)
-	{
-		auto result = fetchErrorMessages("-", "+", count);
-		return result;
-	}
-
-	std::vector<DistributedTask::StreamMessage> fetchErrorMessages(const std::string &startMessageId, long long int count)
-	{
-		auto result = fetchErrorMessages(startMessageId, "+", count);
-		return result;
-	}
-
-	std::vector<DistributedTask::StreamMessage> fetchErrorMessages(const std::string &startMessageId, const std::string &endMessageId, long long int count)
-	{
-		auto result = fetcStreamhMessages(errorOutputStream, startMessageId, endMessageId, count);
-		return result;
-	}
-
-	std::vector<DistributedTask::StreamMessage> fetcStreamhMessages(const std::string streamName, const std::string &startMessageId, const std::string &endMessageId, long long int count)
-	{
-
-		ItemStream is;
-		redis.xrange(streamName, startMessageId, endMessageId, count, std::back_inserter(is));
-
-		std::vector<DistributedTask::StreamMessage> messages;
-		for (const auto &e : is)
-		{
-
-			const auto &messageId = e.first;
-			if (!e.second)
-			{
-				continue;
-			}
-
-			DistributedTask::StreamMessage message;
-
-			const auto &attrs = *e.second;
-
-			message.messageId = std::move(messageId);
-			message.streamName = streamName;
-
-			message.data = std::move(attrs);
-			messages.push_back(std::move(message));
-		}
-		return messages;
-	}
-
-
-	std::string getInputStreamName() const{
-		return inputStreamName;
-	}
-
-	std::string sendMessage(const std::string &streamName, const Attrs &data, std::string streamId)
-	{
-
-		auto messageId = redis.xadd(streamName, streamId, data.begin(), data.end());
-		return messageId;
-	}
-
 };
-
-// inputStreamName => last dependent task + _output
-// groupName => Task Name
-// Consumer Name => unique arbritarary consumer name ?  taskname + _consumer
-// outputStreamName => taskname + _output
-// errorStreamName

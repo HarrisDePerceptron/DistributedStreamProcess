@@ -19,6 +19,8 @@
 #include "hostinfo.h"
 
 #include <type_traits>
+#include "task_publisher.h"
+
 
 namespace RedisNS = sw::redis;
 
@@ -43,7 +45,8 @@ auto main(int argc, char *argv[]) -> int
 	std::string dependentTask = "inputtask";
 	std::string consumerName = "c2";
 
-	Task task(redis, taskName, dependentTask, consumerName );
+	// Task task(redis, taskName, dependentTask, consumerName);
+	Task task(redis, taskName, consumerName);
 
 	TaskCallback callback = [](const DistributedTask::StreamMessage& msg){
 			fmt::print("recevied message {}\n", msg.messageId);
@@ -85,13 +88,13 @@ auto main(int argc, char *argv[]) -> int
 	// 		return response;
 	// });
 
-	task.addCallback(callback);
+	// task.addCallback(callback);
 
 	// task.produce({
 	// 	{"n1", "20"},
 	// 	{"n2", "100"}
 	// });	
-	task.consume(1);
+	// task.consume(1);
 
 
 
@@ -112,5 +115,23 @@ auto main(int argc, char *argv[]) -> int
 
 
 	
+
+	// for(const auto &e: task.fetchMessages(10)){
+	// 	fmt::print("fetching: {}\n",e.messageId);
+	// }
+
+
+	// task.publish({
+	// 	{"output", "20"}
+	// });
+
+
+	TaskPublisher pub{task};
+
+
+	pub.publish({
+		{"n1", "1000"},
+		{"n2", "2000"}
+	});
 	return 0;
 }

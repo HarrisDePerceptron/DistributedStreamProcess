@@ -31,6 +31,7 @@ locality restictions for hosts
 - [x] Consumption interface for processing pending and new messages
 - [x] Result publishing to output
 - [x] Error publishing to error output
+- [ ] Retry task mechanism
 - [ ] Stream length control mechnism
 - [ ] Write examples for Readme
 - [ ] Illistrations/Diagrams for Readme
@@ -43,6 +44,7 @@ locality restictions for hosts
 - [ ] Setup CI/DI pipeline for builds
 - [ ] Setup semantic versioning
 - [ ] Web based visualization tools for tasks
+- [ ] Monitorting tasks
 
 
 ### Installing

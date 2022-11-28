@@ -38,6 +38,7 @@ namespace DistributedTask
 		std::string streamName;
 		std::string messageId;
 		std::string errorMessage;
+		
 	};
 
 

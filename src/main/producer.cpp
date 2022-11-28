@@ -22,7 +22,6 @@
 
 namespace RedisNS = sw::redis;
 
-
 auto main(int argc, char *argv[]) -> int
 {
 
@@ -58,11 +57,10 @@ auto main(int argc, char *argv[]) -> int
 	Task task(redis, taskName, dependentTask, consumerName );
 
 
-	task.produce({
+	task.publish({
 		{"n1", args[0]},
 		{"n2", args[1]}
 	});
 
-	
 	return 0;
 }

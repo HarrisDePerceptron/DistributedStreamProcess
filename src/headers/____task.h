@@ -326,7 +326,12 @@ private:
 		return messageId;
 	}
 
+	std::string sendMessage(const std::string &streamName, const Attrs &data, std::string streamId)
+	{
 
+		auto messageId = redis.xadd(streamName, streamId, data.begin(), data.end());
+		return messageId;
+	}
 
 	void consumePending(long long count)
 	{
@@ -726,16 +731,18 @@ public:
 		return messages;
 	}
 
+	void publish(const Attrs & values){
+		publish(values, "*");
+	}
+	void publish(const Attrs &values,  const std::string &streamId){
+		sendMessage(inputStreamName, values, streamId);
 
-	std::string getInputStreamName() const{
-		return inputStreamName;
 	}
 
-	std::string sendMessage(const std::string &streamName, const Attrs &data, std::string streamId)
-	{
 
-		auto messageId = redis.xadd(streamName, streamId, data.begin(), data.end());
-		return messageId;
+
+	std::string getInputStreamName(){
+		return inputStreamName;
 	}
 
 };
