@@ -17,6 +17,13 @@ target_link_libraries(Producer Threads::Threads stdc++fs redis++::redis++_static
 target_compile_options(Producer PUBLIC -Wall -Wextra -pedantic -Wconversion -Wshadow -O3)
 
 
+add_executable(Fetch "main/fetch.cpp")
+target_include_directories(Fetch PUBLIC
+                          "${PROJECT_BINARY_DIR}/src/headers"  "${PROJECT_SOURCE_DIR}/src/headers"
+                          )
+target_link_libraries(Fetch Threads::Threads stdc++fs redis++::redis++_static fmt::fmt spdlog::spdlog spdlog::spdlog_header_only)
+target_compile_options(Fetch PUBLIC -Wall -Wextra -pedantic -Wconversion -Wshadow -O3)
+
 
 add_executable(Test "main/test.cpp")
 target_compile_options(Test PUBLIC -Wall -Wextra -pedantic -Wconversion -Wshadow -O3)

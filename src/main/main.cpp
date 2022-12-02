@@ -20,6 +20,7 @@
 
 #include <type_traits>
 #include "task_publisher.h"
+#include "task_consumer.h"
 
 
 namespace RedisNS = sw::redis;
@@ -46,7 +47,7 @@ auto main(int argc, char *argv[]) -> int
 	std::string consumerName = "c2";
 
 	// Task task(redis, taskName, dependentTask, consumerName);
-	Task task(redis, taskName, consumerName);
+	Task task(redis, taskName);
 
 	TaskCallback callback = [](const DistributedTask::StreamMessage& msg){
 			fmt::print("recevied message {}\n", msg.messageId);
@@ -126,12 +127,19 @@ auto main(int argc, char *argv[]) -> int
 	// });
 
 
-	TaskPublisher pub{task};
+	// TaskPublisher pub{task};
 
 
-	pub.publish({
-		{"n1", "1000"},
-		{"n2", "2000"}
-	});
+	// pub.publish({
+	// 	{"n1", "1000"},
+	// 	{"n2", "2000"}
+	// });
+
+
+	TaskConsumer consumer {task, consumerName};
+	consumer.addCallback(callback);
+
+	consumer.consume(1);
+
 	return 0;
 }

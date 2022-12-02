@@ -1,25 +1,16 @@
 #include <iostream>
 #include <vector>
 #include <thread>
-#include <fstream>
-#include <future>
 #include <sw/redis++/redis++.h>
-#include "utilities.h"
 
 
 #include <fmt/core.h>
-#include <fmt/format.h>
-#include <fmt/ostream.h>
-
 
 #include "task.h"
 
 #include <unistd.h>
 
-#include "hostinfo.h"
-
 #include <type_traits>
-#include "task_publisher.h"
 
 
 namespace RedisNS = sw::redis;
@@ -34,7 +25,8 @@ auto main(int argc, char *argv[]) -> int
 	});
 
 
-	if (args.size()<2){
+	if (args.size()<1){
+		fmt::print("Please provide atleast one message id\n");
 		return 0;
 	}
 
@@ -53,18 +45,24 @@ auto main(int argc, char *argv[]) -> int
 	RedisNS::Redis redis{connopts};
 
 	std::string taskName = "task1";
-	std::string dependentTask = "inputtask";
-	std::string consumerName = "c1";
 
 	Task task(redis, taskName);
 
-	TaskPublisher tp {task};
 
+	for (const auto & arg: args){
+		fmt::print("Arg: {}\n", arg);
 
-	tp.publish({
-		{"n1", args[0]},
-		{"n2", args[1]}
-	});
+		fmt::print("Output stream name: {}\n", task.getOutputStreamName());
+
+		for(const auto & e: task.fetchOutputMessages(arg,10)){
+
+			fmt::print("{}\n", e.messageId);
+			for(const auto & attr: e.data){
+				fmt::print("attr: {}: {}\n",attr.first, attr.second);
+			}
+		}
+		
+	}
 
 	return 0;
 }

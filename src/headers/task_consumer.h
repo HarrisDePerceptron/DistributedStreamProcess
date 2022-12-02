@@ -3,33 +3,20 @@
 #include <iostream>
 #include <vector>
 #include <thread>
-#include <sw/redis++/redis++.h>
-#include "utilities.h"
 #include <fmt/core.h>
-#include <fmt/ostream.h>
 
 #include "task_response.h"
-#include "task"
 
+#include <functional>
+#include "task.h"
 
 namespace RedisNS = sw::redis;
 
-using Attrs = std::vector<std::pair<std::string, std::string>>;
-using Item = std::pair<std::string, RedisNS::Optional<Attrs>>;
-using ItemStream = std::vector<Item>;
 
-using GroupReadResult = std::unordered_map<std::string, ItemStream>;
-
-using TaskCallback = std::function<Attrs(const DistributedTask::StreamMessage &)>;
 
 class TaskConsumer
 {
 private:
-	std::string dependentTask;
-	std::string inputStreamName;
-
-	std::string outputStreamName;
-	std::string errorOutputStream;
 
 	std::string groupName;
 	std::string consumerName;
@@ -38,8 +25,9 @@ private:
 
 	int totalRetries{3};
 	bool outputResult{true};
+	bool outputError {true};
 
-	using XinfoParseResponse = std::vector<std::vector<std::pair<std::string, std::string>>>;
+	Task & task;
 
 	XinfoParseResponse parseXInfoGroup(const RedisNS::ReplyUPtr &xinfoReply)
 	{
@@ -50,13 +38,13 @@ private:
 			return finalRespponse;
 		}
 
-		for (int groupCounter = 0; groupCounter < xinfoReply->elements; groupCounter++)
+		for (size_t groupCounter = 0; groupCounter < xinfoReply->elements; groupCounter++)
 		{
 			const auto &element = xinfoReply->element[groupCounter]->element;
-			const unsigned int totalResponseFields = xinfoReply->element[groupCounter]->elements;
+			const size_t totalResponseFields = xinfoReply->element[groupCounter]->elements;
 
 			std::vector<std::pair<std::string, std::string>> response;
-			for (int i = 0; i < totalResponseFields; i += 2)
+			for (size_t i = 0; i < totalResponseFields; i += 2)
 			{
 
 				// const auto & name = element[i];
@@ -237,6 +225,13 @@ private:
 		return response;
 	}
 
+	void ackknowledgeStreamMesssage(const std::string &streamId)
+	{
+		auto & redis = task.getRedis();
+		auto inputStreamName= task.getInputStreamName();
+		redis.xack(inputStreamName, groupName, streamId);
+	}
+
 	std::vector<DistributedTask::StreamConsumerMessage> parseReadGroup(const GroupReadResult &result)
 	{
 		std::vector<DistributedTask::StreamConsumerMessage> streamMessages;
@@ -267,7 +262,8 @@ private:
 	{
 		GroupReadResult result;
 		std::chrono::milliseconds wait{waitDuration};
-
+		auto & redis = task.getRedis();
+		const auto & inputStreamName = task.getInputStreamName();
 		try
 		{
 			redis.xreadgroup(groupName, consumerName, inputStreamName, ">", wait, count, std::inserter(result, result.end()));
@@ -285,6 +281,8 @@ private:
 	{
 		GroupReadResult result;
 		std::chrono::milliseconds wait{waitDurationMillis};
+		auto inputStreamName = task.getInputStreamName();
+		auto & redis = task.getRedis();
 
 		try
 		{
@@ -300,6 +298,20 @@ private:
 		return streamMessage;
 	}
 
+	std::string sendResultMessage(const Attrs &data)
+	{
+
+		auto messageId = sendResultMessage(data, "*");
+		return messageId;
+	}
+
+	std::string sendResultMessage(const Attrs &data, std::string streamId)
+	{
+
+		auto outputStreamName = task.getOutputStreamName();
+		auto messageId = task.sendMessage(outputStreamName, data, streamId);
+		return messageId;
+	}
 
 	void consumePending(long long count)
 	{
@@ -418,38 +430,36 @@ private:
 		}
 	}
 
+	Attrs serializeErrorMessage(const DistributedTask::StreamErrorMessage &err)
+	{
+		Attrs attrs = {
+			{"errorMessage", err.errorMessage},
+			{"messageId", err.messageId},
+			{"streamName", err.streamName}};
+
+		return attrs;
+	}
+
+	void sendErrorMessage(const DistributedTask::StreamErrorMessage &err)
+	{
+		auto serializedMessage = serializeErrorMessage(err);
+		auto errorOutputStream = task.getErrorOutputStreamName();
+		task.sendMessage(errorOutputStream, serializedMessage, "*");
+	}
 
 public:
 	TaskConsumer() = delete;
 	TaskConsumer(Task &&) = delete;
 	TaskConsumer &operator=(const Task &) = delete;
-	TaskConsumer &operator=(TaskConsumer &&) = delete;
+	TaskConsumer &operator=(Task &&) = delete;
 
-	TaskConsumer(, const std::string _consumerName)
+	TaskConsumer(Task & task, const std::string consumerName):task{task}
 	{
-		this->taskName = _taskName;
-		this->dependentTask = _dependentTask;
 
-		this->inputStreamName = this->dependentTask + ":output";
-		this->outputStreamName = this->taskName + ":output";
-		this->errorOutputStream = this->taskName + ":error";
-
-		this->groupName = this->taskName;
-
-		this->consumerName = _consumerName;
+		this->groupName =task.getTaskName();
+		this->consumerName = consumerName;
 
 		initialize();
-	}
-
-	Task(RedisNS::Redis &_redis, const std::string _taskName, const std::string _consumerName): 
-		Task(redis, _taskName,  _taskName + ":input", _consumerName)
-	{		
-
-	}
-
-	std::string getErrorStream()
-	{
-		return errorOutputStream;
 	}
 
 	void consume(long long count)
@@ -473,7 +483,9 @@ public:
 	}
 
 	std::vector<DistributedTask::XInfoGroupResponse> getGroupInfo()
-	{
+	{	
+		auto & redis = task.getRedis();
+		auto inputStreamName = task.getInputStreamName();
 		auto res = redis.command("xinfo", "groups", inputStreamName);
 		auto xinfoRes = parseXInfoGroup(res);
 
@@ -483,6 +495,8 @@ public:
 
 	std::vector<DistributedTask::XInfoConsumer> getGroupConsumerInfo()
 	{
+		auto & redis = task.getRedis();
+		auto inputStreamName = task.getInputStreamName();
 		auto res = redis.command("xinfo", "consumers", inputStreamName, groupName);
 		auto xinfoconsumerParseResponse = parseXinfoGroupConsumer(res);
 		auto xinfoConsumerResponse = parseXinfoConsumerResponse(xinfoconsumerParseResponse, groupName);
@@ -520,8 +534,10 @@ public:
 		return exists;
 	}
 
+
 	std::string getConsumerName()
 	{
+		auto taskName = task.getTaskName();
 		std::string finalConsumerName = taskName;
 		auto hostInfo = getHostInfo();
 		finalConsumerName += "_" + hostInfo.hostName;
@@ -560,7 +576,11 @@ public:
 		this->consumerName = getConsumerName();
 		fmt::print("Consumer name is {}\n", this->consumerName);
 
-		if (!streamExists(inputStreamName))
+		auto & redis = task.getRedis();
+		auto inputStreamName = task.getInputStreamName();
+		auto taskName = task.getTaskName();
+
+		if (!task.streamExists(inputStreamName))
 		{
 			fmt::print("Task {} does not exists\n", taskName);
 			redis.xgroup_create(inputStreamName, groupName, "$", true);
