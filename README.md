@@ -31,7 +31,7 @@ locality restictions for hosts
 - [x] Consumption interface for processing pending and new messages
 - [x] Result publishing to output
 - [x] Error publishing to error output
-- [ ] Retry task mechanism
+- [x] Retry task mechanism
 - [ ] Stream length control mechnism
 - [ ] Write examples for Readme
 - [ ] Illistrations/Diagrams for Readme
