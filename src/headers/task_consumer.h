@@ -8,26 +8,33 @@
 #include "task_response.h"
 
 #include <functional>
+
+#include "spdlog/spdlog.h"
+
 #include "task.h"
+#include <optional>
+#include "consumer_config.h"
 
 namespace RedisNS = sw::redis;
 
+namespace logger = spdlog;
 
 
 class TaskConsumer
 {
 private:
-
 	std::string groupName;
 	std::string consumerName;
 
 	std::vector<TaskCallback> callbacks;
 
 	int totalRetries{3};
-	bool outputResult{true};
-	bool outputError {true};
+	std::chrono::milliseconds retryWait{1000};
 
-	Task & task;
+	bool outputResult{true};
+	bool outputError{true};
+
+	Task &task;
 
 	XinfoParseResponse parseXInfoGroup(const RedisNS::ReplyUPtr &xinfoReply)
 	{
@@ -227,8 +234,8 @@ private:
 
 	void ackknowledgeStreamMesssage(const std::string &streamId)
 	{
-		auto & redis = task.getRedis();
-		auto inputStreamName= task.getInputStreamName();
+		auto &redis = task.getRedis();
+		auto inputStreamName = task.getInputStreamName();
 		redis.xack(inputStreamName, groupName, streamId);
 	}
 
@@ -262,15 +269,15 @@ private:
 	{
 		GroupReadResult result;
 		std::chrono::milliseconds wait{waitDuration};
-		auto & redis = task.getRedis();
-		const auto & inputStreamName = task.getInputStreamName();
+		auto &redis = task.getRedis();
+		const auto &inputStreamName = task.getInputStreamName();
 		try
 		{
 			redis.xreadgroup(groupName, consumerName, inputStreamName, ">", wait, count, std::inserter(result, result.end()));
 		}
 		catch (const std::exception &e)
 		{
-			fmt::print("Error: {}\n", e.what());
+			logger::error("Error: {}\n", e.what());
 		}
 
 		auto streamMessage = parseReadGroup(result);
@@ -282,7 +289,7 @@ private:
 		GroupReadResult result;
 		std::chrono::milliseconds wait{waitDurationMillis};
 		auto inputStreamName = task.getInputStreamName();
-		auto & redis = task.getRedis();
+		auto &redis = task.getRedis();
 
 		try
 		{
@@ -291,7 +298,7 @@ private:
 		}
 		catch (const std::exception &e)
 		{
-			fmt::print("[Error] [ReadPending] {}\n", e.what());
+			logger::error("[Error] [ReadPending] {}\n", e.what());
 		}
 
 		auto streamMessage = parseReadGroup(result);
@@ -319,14 +326,14 @@ private:
 		auto currentConsumerInfo = getCurrentConsumerInfo();
 		if (currentConsumerInfo == nullptr)
 		{
-			fmt::print("No consumer at the moment. wait for a message to received");
+			logger::info("No consumer at the moment. wait for a message to received");
 			return;
 		}
 
-		fmt::print("Total pending messages: {}\n", currentConsumerInfo->pending);
+		logger::info("Total pending messages: {}\n", currentConsumerInfo->pending);
 
 		long long int totalBatches = currentConsumerInfo->pending / count;
-		fmt::print("Total pending batches: {}\n", totalBatches);
+		logger::info("Total pending batches: {}\n", totalBatches);
 
 		while (true)
 		{
@@ -338,7 +345,7 @@ private:
 				const auto pendingMessages = readPendingGroupMessages(count, 500);
 				if (pendingMessages.size() == 0)
 				{
-					fmt::print("No more pending messages...\n");
+					logger::info("No more pending messages...\n");
 					break;
 				}
 				for (const auto &streamMessage : pendingMessages)
@@ -355,20 +362,20 @@ private:
 						}
 						catch (const std::exception &exxx)
 						{
-							fmt::print("[Error] [ConsumePending] [Callback] {}\n", exxx.what());
+							logger::error("[Error] [ConsumePending] [Callback] {}\n", exxx.what());
 						}
 
 						ackknowledgeStreamMesssage(streamMessage.messageId);
 					}
 					catch (const std::exception &exx)
 					{
-						fmt::print("[Error] [ConsumePending] [StreamMessage] {}\n", exx.what());
+						logger::error("[Error] [ConsumePending] [StreamMessage] {}\n", exx.what());
 					}
 				}
 			}
 			catch (const std::exception &ex)
 			{
-				fmt::print("[Error] [ConsumePending] {}\n", ex.what());
+				logger::error("[Error] [ConsumePending] {}\n", ex.what());
 			}
 		}
 	}
@@ -384,22 +391,47 @@ private:
 	}
 	void consumeMessage(const TaskCallback &tcb, const DistributedTask::StreamConsumerMessage &streamMessage)
 	{
+		int currentTry = 0;
 
-		try
+		const int totalTries = totalRetries + 1;
+
+		while (currentTry < totalTries)
 		{
-			auto res = tcb(streamMessage);
-			if (res.size() > 0)
+			auto lastTry =  currentTry>=totalTries-1;		
+
+			try
 			{
-				sendResultMessage(res);
-			}
-		}
-		catch (const std::exception &exxx)
-		{
-			const auto &message = exxx.what();
-			auto errorMessage = formatConsumerErrorMessage(streamMessage, message);
-			sendErrorMessage(errorMessage);
+				auto res = tcb(streamMessage);
+				if (res.size() > 0)
+				{
+					if(outputResult){
+						sendResultMessage(res);
+					}
+				}
 
-			fmt::print("[ERROR] [CONSUMER] [Callback] {}\n", message);
+				break;
+			}
+			catch (const std::exception &exxx)
+			{
+				const auto &message = exxx.what();
+				logger::error("[ERROR] [CONSUMER] [Callback] {}\n", message);
+				
+				if (outputError){
+					if(lastTry){
+						auto errorMessage = formatConsumerErrorMessage(streamMessage, message);
+						sendErrorMessage(errorMessage);
+					}
+				}
+			}
+
+			
+			currentTry++;
+			
+			if(currentTry < totalTries){
+				logger::info("Retrying... Current try: {}\n", currentTry);
+				std::this_thread::sleep_for(retryWait);
+			}
+			
 		}
 	}
 
@@ -420,12 +452,12 @@ private:
 					consumeMessage(e, streamMessage);
 				}
 
-				fmt::print("Stream Message: \n {}", streamMessage);
+				logger::debug("Stream Message: \n {}", streamMessage);
 				ackknowledgeStreamMesssage(streamMessage.messageId);
 			}
 			catch (const std::exception &ex)
 			{
-				fmt::print("[ERROR] [CONSUMER] [StreamMessage] {}\n", ex.what());
+				logger::error("[ERROR] [CONSUMER] [StreamMessage] {}\n", ex.what());
 			}
 		}
 	}
@@ -453,13 +485,36 @@ public:
 	TaskConsumer &operator=(const Task &) = delete;
 	TaskConsumer &operator=(Task &&) = delete;
 
-	TaskConsumer(Task & task, const std::string consumerName):task{task}
+	TaskConsumer(Task &task, const std::string consumerName) : task{task}
 	{
 
-		this->groupName =task.getTaskName();
+		this->groupName = task.getTaskName();
 		this->consumerName = consumerName;
 
 		initialize();
+	}
+
+	TaskConsumer(Task &task, const std::string consumerName, const DistributedTask::ConsumerConfig & config) : TaskConsumer{task, consumerName}
+	{
+
+		logger::info("Consumer received config: {}\n", config);
+
+		if (config.retryWait){
+			this->retryWait =  *config.retryWait;
+		}
+
+		if (config.totalRetries){
+			this->totalRetries =  *config.totalRetries;
+		}
+
+		if (config.outputResult){
+			this->outputResult = *config.outputResult;
+		}
+
+		if (config.outputError){
+			this->outputError = *config.outputError;
+		}
+
 	}
 
 	void consume(long long count)
@@ -477,14 +532,14 @@ public:
 			}
 			catch (const std::exception &e)
 			{
-				fmt::print("[ERROR] [CONSUME] {}\n", e.what());
+				logger::info("[ERROR] [CONSUME] {}\n", e.what());
 			}
 		}
 	}
 
 	std::vector<DistributedTask::XInfoGroupResponse> getGroupInfo()
-	{	
-		auto & redis = task.getRedis();
+	{
+		auto &redis = task.getRedis();
 		auto inputStreamName = task.getInputStreamName();
 		auto res = redis.command("xinfo", "groups", inputStreamName);
 		auto xinfoRes = parseXInfoGroup(res);
@@ -495,7 +550,7 @@ public:
 
 	std::vector<DistributedTask::XInfoConsumer> getGroupConsumerInfo()
 	{
-		auto & redis = task.getRedis();
+		auto &redis = task.getRedis();
 		auto inputStreamName = task.getInputStreamName();
 		auto res = redis.command("xinfo", "consumers", inputStreamName, groupName);
 		auto xinfoconsumerParseResponse = parseXinfoGroupConsumer(res);
@@ -533,7 +588,6 @@ public:
 		}
 		return exists;
 	}
-
 
 	std::string getConsumerName()
 	{
@@ -574,25 +628,24 @@ public:
 	{
 
 		this->consumerName = getConsumerName();
-		fmt::print("Consumer name is {}\n", this->consumerName);
+		logger::info("Consumer name is {}\n", this->consumerName);
 
-		auto & redis = task.getRedis();
+		auto &redis = task.getRedis();
 		auto inputStreamName = task.getInputStreamName();
 		auto taskName = task.getTaskName();
 
 		if (!task.streamExists(inputStreamName))
 		{
-			fmt::print("Task {} does not exists\n", taskName);
+			logger::info("Task {} does not exists\n", taskName);
 			redis.xgroup_create(inputStreamName, groupName, "$", true);
 		}
 		else if (!groupExists())
 		{
-			fmt::print("Group {} does not exists\n", groupName);
+			logger::info("Group {} does not exists\n", groupName);
 			redis.xgroup_create(inputStreamName, groupName, "$");
 		}
 
 		auto consumerInfo = getGroupConsumerInfo();
-		fmt::print("Total consumers: {}\n", consumerInfo.size());
+		logger::info("Total consumers: {}\n", consumerInfo.size());
 	}
-
 };

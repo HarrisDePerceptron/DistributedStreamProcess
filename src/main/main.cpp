@@ -22,12 +22,15 @@
 #include "task_publisher.h"
 #include "task_consumer.h"
 
+#include "consumer_config.h"
 
 namespace RedisNS = sw::redis;
-
+namespace logger = spdlog;
 
 auto main(int argc, char *argv[]) -> int
 {
+
+	logger::set_level(logger::level::debug);
 
 	const std::string password = "87654321";
 	const std::string host = "localhost";
@@ -78,68 +81,34 @@ auto main(int argc, char *argv[]) -> int
 				response.push_back(
 					{"output", output}
 				);
+				
+				logger::debug("Output: {}\n", output);
 			}
+			
 			return response;
 	};
 
-	// task.addCallback([](const DistributedTask::StreamMessage& msg){
-	// 		fmt::print("recevied message2 {}\n", msg.messageId);
-	// 		throw std::runtime_error{"Random error in callback"};
-	// 		Attrs response;
-	// 		return response;
-	// });
 
-	// task.addCallback(callback);
+	DistributedTask::ConsumerConfig  cc;
 
-	// task.produce({
-	// 	{"n1", "20"},
-	// 	{"n2", "100"}
-	// });	
-	// task.consume(1);
+	cc.totalRetries = 3;
+	cc.retryWait = std::chrono::milliseconds{5000};
+	cc.outputResult = true;
+	cc.outputError = true;
 
+	fmt::print("Consumer config: {}\n", cc);
 
-
-	// task.sendMessage({
-	// 	{"output", "5"}
-	// });
-
-
-	// # fetch messages in a stream
-
-	// for (const auto & e: task.fetchErrorMessages(5)){
-	// 	fmt::print("Stream xrange: {}: {}\n", e.streamName, e.messageId);
-
-	// 	for (const auto &attr: e.data){
-	// 		fmt::print("{}: {}\n", attr.first, attr.second);
-	// 	}
-	// }
-
-
-	
-
-	// for(const auto &e: task.fetchMessages(10)){
-	// 	fmt::print("fetching: {}\n",e.messageId);
-	// }
-
-
-	// task.publish({
-	// 	{"output", "20"}
-	// });
-
-
-	// TaskPublisher pub{task};
-
-
-	// pub.publish({
-	// 	{"n1", "1000"},
-	// 	{"n2", "2000"}
-	// });
-
-
-	TaskConsumer consumer {task, consumerName};
+	TaskConsumer consumer {task, consumerName, cc};
 	consumer.addCallback(callback);
 
+	// consumer.addCallback([](const DistributedTask::StreamMessage & msg)->Attrs{
+	// 		throw std::runtime_error{"Random exception generated"};
+			
+	// });
+
 	consumer.consume(1);
+
+
 
 	return 0;
 }
