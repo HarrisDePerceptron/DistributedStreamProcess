@@ -32,6 +32,7 @@ locality restictions for hosts
 - [x] Result publishing to output
 - [x] Error publishing to error output
 - [x] Retry task mechanism
+- [ ] Stream helpers [last message, getMessageByID]
 - [ ] Stream length control mechnism
 - [ ] Write examples for Readme
 - [ ] Illistrations/Diagrams for Readme

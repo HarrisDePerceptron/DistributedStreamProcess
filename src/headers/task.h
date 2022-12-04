@@ -35,7 +35,6 @@ private:
 	std::string errorOutputStream;
 
 	RedisNS::Redis &redis;
-	
 
 	XinfoParseResponse parseXInfoGroup(const RedisNS::ReplyUPtr &xinfoReply)
 	{
@@ -273,6 +272,25 @@ private:
 		sendMessage(errorOutputStream, serializedMessage, "*");
 	}
 
+	std::string getFieldValueFromAttributes(const Attrs &attributes, const std::string &fieldName)
+	{
+		Attrs result;
+		std::copy_if(attributes.begin(), attributes.end(), std::back_inserter(result), [&fieldName](const std::pair<std::string, std::string> &e)
+					 {
+			if (e.first==fieldName){
+				return true;
+			}	
+			return false; });
+
+		if (result.size() == 0)
+		{
+			throw std::runtime_error{fmt::format("Unable to find field '{}' in attributes", fieldName)};
+		}
+
+		auto value = std::move(result[0].second);
+		return value;
+	}
+
 public:
 	Task() = delete;
 	Task(const Task &&) = delete;
@@ -287,13 +305,10 @@ public:
 		this->inputStreamName = this->dependentTask + ":output";
 		this->outputStreamName = this->taskName + ":output";
 		this->errorOutputStream = this->taskName + ":error";
-
 	}
 
-	Task(RedisNS::Redis &_redis, const std::string _taskName): 
-		Task(_redis, _taskName,  _taskName + ":input")
-	{		
-
+	Task(RedisNS::Redis &_redis, const std::string _taskName) : Task(_redis, _taskName, _taskName + ":input")
+	{
 	}
 
 	std::string getErrorStream()
@@ -309,7 +324,6 @@ public:
 		auto groupResponse = parseXinfoGroupResponse(xinfoRes);
 		return groupResponse;
 	}
-
 
 	bool streamExists(const std::string &streamName)
 	{
@@ -335,7 +349,6 @@ public:
 		return false;
 	}
 
-
 	std::vector<DistributedTask::StreamMessage> fetchMessages(long long int count)
 	{
 
@@ -352,7 +365,7 @@ public:
 
 	std::vector<DistributedTask::StreamMessage> fetchMessages(const std::string &startMessageId, const std::string &endMessageId, long long int count)
 	{
-		auto result = fetcStreamhMessages(inputStreamName, startMessageId, endMessageId, count);
+		auto result = fetchStreamhMessages(inputStreamName, startMessageId, endMessageId, count);
 		return result;
 	}
 
@@ -370,7 +383,7 @@ public:
 
 	std::vector<DistributedTask::StreamMessage> fetchOutputMessages(const std::string &startMessageId, const std::string &endMessageId, long long int count)
 	{
-		auto result = fetcStreamhMessages(outputStreamName, startMessageId, endMessageId, count);
+		auto result = fetchStreamhMessages(outputStreamName, startMessageId, endMessageId, count);
 		return result;
 	}
 
@@ -388,11 +401,11 @@ public:
 
 	std::vector<DistributedTask::StreamMessage> fetchErrorMessages(const std::string &startMessageId, const std::string &endMessageId, long long int count)
 	{
-		auto result = fetcStreamhMessages(errorOutputStream, startMessageId, endMessageId, count);
+		auto result = fetchStreamhMessages(errorOutputStream, startMessageId, endMessageId, count);
 		return result;
 	}
 
-	std::vector<DistributedTask::StreamMessage> fetcStreamhMessages(const std::string streamName, const std::string &startMessageId, const std::string &endMessageId, long long int count)
+	std::vector<DistributedTask::StreamMessage> fetchStreamhMessages(const std::string streamName, const std::string &startMessageId, const std::string &endMessageId, long long int count)
 	{
 
 		ItemStream is;
@@ -421,16 +434,18 @@ public:
 		return messages;
 	}
 
-
-	std::string getInputStreamName() const{
+	std::string getInputStreamName() const
+	{
 		return inputStreamName;
 	}
 
-	std::string getOutputStreamName() const{
+	std::string getOutputStreamName() const
+	{
 		return outputStreamName;
 	}
 
-	std::string getErrorOutputStreamName() const{
+	std::string getErrorOutputStreamName() const
+	{
 		return errorOutputStream;
 	}
 
@@ -441,13 +456,52 @@ public:
 		return messageId;
 	}
 
-
-	std::string getTaskName() const{
+	std::string getTaskName() const
+	{
 		return taskName;
 	}
 
-	RedisNS::Redis & getRedis() const {
+	RedisNS::Redis &getRedis() const
+	{
 		return redis;
+	}
+
+	DistributedTask::StreamMessage getMessageById(const std::string &streamName, const std::string &messageId)
+	{
+		auto messages = fetchStreamhMessages(streamName, messageId, messageId, 1);
+		if (messages.size() == 0)
+		{
+			throw std::runtime_error{fmt::format("Message id {} not found", messageId)};
+		}
+
+		auto message = std::move(messages[0]);
+		return message;
+	}
+
+	DistributedTask::StreamMessage getOutputById(const std::string &messageId)
+	{
+		auto streamName = getOutputStreamName();
+		auto message = getMessageById(streamName, messageId);
+		return message;
+	}
+
+	DistributedTask::StreamMessage getErrorById(const std::string &messageId)
+	{
+		auto streamName = getErrorOutputStreamName();
+		auto message = getMessageById(streamName, messageId);
+		return message;
+	}
+
+	DistributedTask::StreamMessage getStreamMessageFromError(const std::string &messageId)
+	{
+		auto result = getErrorById(messageId);
+
+		auto originalMessageId = getFieldValueFromAttributes(result.data, "messageId");
+		auto originalStreamName = getFieldValueFromAttributes(result.data, "streamName");
+
+		auto originalMessage = getMessageById(originalStreamName, originalMessageId);
+		return originalMessage;
+
 	}
 };
 

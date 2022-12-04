@@ -27,6 +27,26 @@
 namespace RedisNS = sw::redis;
 namespace logger = spdlog;
 
+
+std::string getFieldValueFromAttributes(const Attrs & attributes, const std::string & fieldName ){
+	Attrs result;
+	std::copy_if(attributes.begin(), attributes.end(), std::back_inserter(result), [&fieldName](const std::pair<std::string, std::string>  & e){
+			if (e.first==fieldName){
+				return true;
+			}	
+			return false;
+	});
+
+	if (result.size()==0){
+		throw std::runtime_error{fmt::format("Unable to find field '{}' in attributes", fieldName)};
+	}
+
+
+	auto value = std::move(result[0].second);
+	return value;
+
+}
+
 auto main(int argc, char *argv[]) -> int
 {
 
@@ -106,9 +126,12 @@ auto main(int argc, char *argv[]) -> int
 			
 	// });
 
-	consumer.consume(1);
+	// consumer.consume(1);
 
+	auto result = task.getStreamMessageFromError("1669988579395-0");
 
-
+	for(const auto& e: result.data){
+		logger::debug("Original {}: {}", e.first, e.second);
+	}
 	return 0;
 }
