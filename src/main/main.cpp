@@ -22,30 +22,11 @@
 #include "task_publisher.h"
 #include "task_consumer.h"
 
-#include "consumer_config.h"
+#include "config.h"
 
 namespace RedisNS = sw::redis;
 namespace logger = spdlog;
 
-
-std::string getFieldValueFromAttributes(const Attrs & attributes, const std::string & fieldName ){
-	Attrs result;
-	std::copy_if(attributes.begin(), attributes.end(), std::back_inserter(result), [&fieldName](const std::pair<std::string, std::string>  & e){
-			if (e.first==fieldName){
-				return true;
-			}	
-			return false;
-	});
-
-	if (result.size()==0){
-		throw std::runtime_error{fmt::format("Unable to find field '{}' in attributes", fieldName)};
-	}
-
-
-	auto value = std::move(result[0].second);
-	return value;
-
-}
 
 auto main(int argc, char *argv[]) -> int
 {
@@ -115,6 +96,8 @@ auto main(int argc, char *argv[]) -> int
 	cc.retryWait = std::chrono::milliseconds{5000};
 	cc.outputResult = true;
 	cc.outputError = true;
+	// cc.outputMaxLength = 1;
+
 
 	fmt::print("Consumer config: {}\n", cc);
 
@@ -126,7 +109,7 @@ auto main(int argc, char *argv[]) -> int
 			
 	// });
 
-	// consumer.consume(1);
+	consumer.consume(1);
 
 	auto result = task.getStreamMessageFromError("1669988579395-0");
 

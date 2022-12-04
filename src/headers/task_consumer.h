@@ -13,7 +13,7 @@
 
 #include "task.h"
 #include <optional>
-#include "consumer_config.h"
+#include "config.h"
 
 namespace RedisNS = sw::redis;
 
@@ -25,7 +25,7 @@ class TaskConsumer
 private:
 	std::string groupName;
 	std::string consumerName;
-
+	
 	std::vector<TaskCallback> callbacks;
 
 	int totalRetries{3};
@@ -33,6 +33,10 @@ private:
 
 	bool outputResult{true};
 	bool outputError{true};
+	
+	unsigned long long outputMaxLength{0};
+	unsigned long long errorMaxLength {0};
+	
 
 	Task &task;
 
@@ -316,7 +320,8 @@ private:
 	{
 
 		auto outputStreamName = task.getOutputStreamName();
-		auto messageId = task.sendMessage(outputStreamName, data, streamId);
+
+		auto messageId = task.sendMessage(outputStreamName, data, streamId, outputMaxLength);
 		return messageId;
 	}
 
@@ -476,7 +481,7 @@ private:
 	{
 		auto serializedMessage = serializeErrorMessage(err);
 		auto errorOutputStream = task.getErrorOutputStreamName();
-		task.sendMessage(errorOutputStream, serializedMessage, "*");
+		task.sendMessage(errorOutputStream, serializedMessage, "*", errorMaxLength);
 	}
 
 public:
@@ -513,6 +518,13 @@ public:
 
 		if (config.outputError){
 			this->outputError = *config.outputError;
+		}
+		if (config.outputMaxLength){
+			this->outputMaxLength = *config.outputMaxLength;
+		}
+		
+		if (config.errorMaxLength){
+			this->errorMaxLength = *config.errorMaxLength;
 		}
 
 	}

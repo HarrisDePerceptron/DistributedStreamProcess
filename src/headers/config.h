@@ -15,6 +15,16 @@ namespace DistributedTask
 		std::optional<std::chrono::milliseconds> retryWait;
 		std::optional<bool> outputResult;
 		std::optional<bool> outputError;
+		std::optional<unsigned long long int>  outputMaxLength;
+		std::optional<unsigned long long int>  errorMaxLength;
+		
+	};
+
+
+	struct PublisherConfig
+	{	
+		std::optional<unsigned long long int>  inputMaxLength;		
+		
 	};
 
 	std::ostream &operator<<(std::ostream &os, const ConsumerConfig &cc){
@@ -31,6 +41,20 @@ namespace DistributedTask
 			if(cc.outputError)
 			os<<",\n\t"<<"outputError: "<<(cc.outputError.value()?"true":"false");
 
+			if(cc.errorMaxLength)
+			os<<",\n\t"<<"errorMaxLength: "<<*cc.errorMaxLength;
+
+			if(cc.outputMaxLength)
+			os<<",\n\t"<<"outputMaxLength: "<<*cc.outputMaxLength;
+
+			os<<"\n}";
+			return os;
+	}
+
+		std::ostream &operator<<(std::ostream &os, const PublisherConfig &cc){
+			os<<"{\n";
+			if(cc.inputMaxLength)
+			os<<",\n\t"<<"inputMaxLength: "<<*cc.inputMaxLength;
 			os<<"\n}";
 			return os;
 	}

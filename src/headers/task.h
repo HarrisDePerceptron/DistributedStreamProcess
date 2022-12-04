@@ -12,8 +12,10 @@
 #include "hostinfo.h"
 
 #include <functional>
+#include <spdlog/spdlog.h>
 
 namespace RedisNS = sw::redis;
+namespace logger = spdlog;
 
 using Attrs = std::vector<std::pair<std::string, std::string>>;
 using Item = std::pair<std::string, RedisNS::Optional<Attrs>>;
@@ -272,7 +274,7 @@ private:
 		sendMessage(errorOutputStream, serializedMessage, "*");
 	}
 
-	std::string getFieldValueFromAttributes(const Attrs &attributes, const std::string &fieldName)
+	std::string getFieldValueFromAttributes(const Attrs &attributes, const std::string &fieldName) const
 	{
 		Attrs result;
 		std::copy_if(attributes.begin(), attributes.end(), std::back_inserter(result), [&fieldName](const std::pair<std::string, std::string> &e)
@@ -405,7 +407,7 @@ public:
 		return result;
 	}
 
-	std::vector<DistributedTask::StreamMessage> fetchStreamhMessages(const std::string streamName, const std::string &startMessageId, const std::string &endMessageId, long long int count)
+	std::vector<DistributedTask::StreamMessage> fetchStreamhMessages(const std::string streamName, const std::string &startMessageId, const std::string &endMessageId, long long int count) const
 	{
 
 		ItemStream is;
@@ -449,10 +451,22 @@ public:
 		return errorOutputStream;
 	}
 
+	std::string sendMessage(const std::string &streamName, const Attrs &data, std::string streamId, const long long int maxLength)
+	{
+
+		if (maxLength != 0)
+		{
+			auto messageId = redis.xadd(streamName, streamId, data.begin(), data.end(), maxLength, true);
+			return messageId;
+		}
+
+		auto messageId = redis.xadd(streamName, streamId, data.begin(), data.end());
+		return messageId;
+	}
 	std::string sendMessage(const std::string &streamName, const Attrs &data, std::string streamId)
 	{
 
-		auto messageId = redis.xadd(streamName, streamId, data.begin(), data.end());
+		auto messageId = sendMessage(streamName, data, streamId, 0);
 		return messageId;
 	}
 
@@ -466,7 +480,7 @@ public:
 		return redis;
 	}
 
-	DistributedTask::StreamMessage getMessageById(const std::string &streamName, const std::string &messageId)
+	DistributedTask::StreamMessage getMessageById(const std::string &streamName, const std::string &messageId) const
 	{
 		auto messages = fetchStreamhMessages(streamName, messageId, messageId, 1);
 		if (messages.size() == 0)
@@ -478,21 +492,21 @@ public:
 		return message;
 	}
 
-	DistributedTask::StreamMessage getOutputById(const std::string &messageId)
+	DistributedTask::StreamMessage getOutputById(const std::string &messageId) const
 	{
 		auto streamName = getOutputStreamName();
 		auto message = getMessageById(streamName, messageId);
 		return message;
 	}
 
-	DistributedTask::StreamMessage getErrorById(const std::string &messageId)
+	DistributedTask::StreamMessage getErrorById(const std::string &messageId) const
 	{
 		auto streamName = getErrorOutputStreamName();
 		auto message = getMessageById(streamName, messageId);
 		return message;
 	}
 
-	DistributedTask::StreamMessage getStreamMessageFromError(const std::string &messageId)
+	DistributedTask::StreamMessage getStreamMessageFromError(const std::string &messageId) const
 	{
 		auto result = getErrorById(messageId);
 
@@ -501,7 +515,6 @@ public:
 
 		auto originalMessage = getMessageById(originalStreamName, originalMessageId);
 		return originalMessage;
-
 	}
 };
 

@@ -33,7 +33,7 @@ locality restictions for hosts
 - [x] Error publishing to error output
 - [x] Retry task mechanism
 - [x] Stream helpers [last message, getMessageByID]
-- [ ] Stream length control mechnism
+- [x] Stream length control mechnism
 - [ ] Reclaim pending messages from consumer if they exceed some idle time
 - [ ] Write examples for Readme
 - [ ] Illistrations/Diagrams for Readme
