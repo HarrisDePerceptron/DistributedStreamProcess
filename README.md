@@ -18,7 +18,7 @@ locality restictions for hosts
 - Redis (streams)
 
 
-### Support Languages
+### Supported Languages
 - [x] C++ 17 [redis]
 - [ ] Python
 - [ ] Rust
@@ -32,12 +32,12 @@ locality restictions for hosts
 - [x] Result publishing to output
 - [x] Error publishing to error output
 - [x] Retry task mechanism
-- [ ] Stream helpers [last message, getMessageByID]
+- [x] Stream helpers [last message, getMessageByID]
 - [ ] Stream length control mechnism
+- [ ] Reclaim pending messages from consumer if they exceed some idle time
 - [ ] Write examples for Readme
 - [ ] Illistrations/Diagrams for Readme
 - [ ] Concurrency support for stream processing
-- [ ] Reclaim pending messages from consumer if they exceed some idle time
 - [ ] Collect processing errors by consumer given the data
 - [ ] Reprocess error messages within given retries
 - [ ] Explore better cpp templates
