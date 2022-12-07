@@ -9,7 +9,7 @@
 
 #include <functional>
 
-#include "spdlog/spdlog.h"
+#include <spdlog/spdlog.h>
 
 #include "task.h"
 #include <optional>
@@ -59,8 +59,8 @@ private:
 			{
 
 				// const auto & name = element[i];
-				const unsigned int keyIndex = i;
-				const unsigned int valueIndex = i + 1;
+				const auto keyIndex = i;
+				const auto valueIndex = i + 1;
 
 				const auto &key = element[keyIndex];
 				const auto &value = element[valueIndex];
@@ -97,10 +97,10 @@ private:
 		}
 
 		const auto &consumerArray = consumerRes->element;
-		const int totalConsumers = consumerRes->elements;
+		const auto totalConsumers = consumerRes->elements;
 
 		XinfoParseResponse consumers;
-		for (int c = 0; c < totalConsumers; c++)
+		for (size_t c = 0; c < totalConsumers; c++)
 		{
 			const auto &consumer = consumerArray[c];
 
@@ -109,14 +109,14 @@ private:
 				throw std::runtime_error{"Key value must be an array"};
 			}
 
-			const int totalKeyValue = consumer->elements;
+			const auto totalKeyValue = consumer->elements;
 
 			std::vector<std::pair<std::string, std::string>> response;
 
-			for (int i = 0; i < totalKeyValue; i += 2)
+			for (size_t i = 0; i < totalKeyValue; i += 2)
 			{
-				int keyIndex = i;
-				int valueIndex = i + 1;
+				auto keyIndex = i;
+				auto valueIndex = i + 1;
 
 				std::string key = consumer->element[keyIndex]->str;
 
@@ -196,14 +196,14 @@ private:
 		return response;
 	}
 
-	std::vector<DistributedTask::XInfoConsumer> parseXinfoConsumerResponse(const XinfoParseResponse &raw, const std::string &groupName)
+	std::vector<DistributedTask::XInfoConsumer> parseXinfoConsumerResponse(const XinfoParseResponse &raw, const std::string &_groupName)
 	{
 		std::vector<DistributedTask::XInfoConsumer> response;
 
 		for (const auto &groups : raw)
 		{
 			DistributedTask::XInfoConsumer res;
-			res.groupName = groupName;
+			res.groupName = _groupName;
 
 			for (const auto &attr : groups)
 			{
@@ -489,16 +489,16 @@ public:
 	TaskConsumer &operator=(const Task &) = delete;
 	TaskConsumer &operator=(Task &&) = delete;
 
-	TaskConsumer(Task &task, const std::string consumerName) : task{task}
+	TaskConsumer(Task &_task, const std::string _consumerName) : task{_task}
 	{
 
 		this->groupName = task.getTaskName();
-		this->consumerName = consumerName;
+		this->consumerName = _consumerName;
 
 		initialize();
 	}
 
-	TaskConsumer(Task &task, const std::string consumerName, const DistributedTask::ConsumerConfig & config) : TaskConsumer{task, consumerName}
+	TaskConsumer(Task &_task, const std::string _consumerName, const DistributedTask::ConsumerConfig & config) : TaskConsumer{_task, _consumerName}
 	{
 
 		logger::info("Consumer received config: {}\n", config);

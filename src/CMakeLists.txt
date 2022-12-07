@@ -6,7 +6,7 @@ target_include_directories(DistrubitedTask PUBLIC
                           ${UWEBSOCKETS_INCLUDE_DIRS}
                           )
 target_link_libraries(DistrubitedTask Threads::Threads stdc++fs nlohmann_json::nlohmann_json ${USOCKETS_LIB} ${LIBUV_LIB} ZLIB::ZLIB  absl::any absl::base absl::flags_parse cpr::cpr redis++::redis++_static fmt::fmt spdlog::spdlog spdlog::spdlog_header_only)
-target_compile_options(DistrubitedTask PUBLIC -Wall -Wextra -pedantic -Wconversion -Wshadow -O0)
+target_compile_options(DistrubitedTask PUBLIC -Wall -Werror -Wextra -pedantic -Wconversion -Wshadow -O0)
 
 
 add_executable(Producer "main/producer.cpp")

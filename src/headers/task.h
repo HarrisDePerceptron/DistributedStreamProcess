@@ -47,18 +47,18 @@ private:
 			return finalRespponse;
 		}
 
-		for (int groupCounter = 0; groupCounter < xinfoReply->elements; groupCounter++)
+		for (size_t groupCounter = 0; groupCounter < xinfoReply->elements; groupCounter++)
 		{
 			const auto &element = xinfoReply->element[groupCounter]->element;
-			const unsigned int totalResponseFields = xinfoReply->element[groupCounter]->elements;
+			const auto totalResponseFields = xinfoReply->element[groupCounter]->elements;
 
 			std::vector<std::pair<std::string, std::string>> response;
-			for (int i = 0; i < totalResponseFields; i += 2)
+			for (size_t i = 0; i < totalResponseFields; i += 2)
 			{
 
 				// const auto & name = element[i];
-				const unsigned int keyIndex = i;
-				const unsigned int valueIndex = i + 1;
+				const auto keyIndex = i;
+				const auto valueIndex = i + 1;
 
 				const auto &key = element[keyIndex];
 				const auto &value = element[valueIndex];
@@ -95,10 +95,10 @@ private:
 		}
 
 		const auto &consumerArray = consumerRes->element;
-		const int totalConsumers = consumerRes->elements;
+		const auto totalConsumers = consumerRes->elements;
 
 		XinfoParseResponse consumers;
-		for (int c = 0; c < totalConsumers; c++)
+		for (size_t c = 0; c < totalConsumers; c++)
 		{
 			const auto &consumer = consumerArray[c];
 
@@ -107,14 +107,14 @@ private:
 				throw std::runtime_error{"Key value must be an array"};
 			}
 
-			const int totalKeyValue = consumer->elements;
+			const auto totalKeyValue = consumer->elements;
 
 			std::vector<std::pair<std::string, std::string>> response;
 
-			for (int i = 0; i < totalKeyValue; i += 2)
+			for (size_t i = 0; i < totalKeyValue; i += 2)
 			{
-				int keyIndex = i;
-				int valueIndex = i + 1;
+				auto keyIndex = i;
+				auto valueIndex = i + 1;
 
 				std::string key = consumer->element[keyIndex]->str;
 

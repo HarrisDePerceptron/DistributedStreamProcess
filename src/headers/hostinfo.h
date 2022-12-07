@@ -4,6 +4,8 @@
 #include <unistd.h>
 #include <iostream>
 
+#include <array>
+
 struct HostInfo {
     std::string hostName;
     std::string loginName;
@@ -23,16 +25,18 @@ struct HostInfo {
 };
 
 
-HostInfo getHostInfo(const int HOSTNAME_MAX = 150){
+HostInfo getHostInfo(const size_t HOSTNAME_MAX = 150){
 
-	char hostnameBuffer[HOSTNAME_MAX];
-	auto hres = gethostname(hostnameBuffer, HOSTNAME_MAX);
+	// char hostnameBuffer[HOSTNAME_MAX];
+    static constexpr size_t MAX  = 1000;
+    std::array<char, MAX> hostnameBuffer;
+	auto hres = gethostname(hostnameBuffer.data(), MAX);
     if(hres){
         throw std::runtime_error{"Unable to get hostname"};
     }
 
-	char hostLoginBuffer[HOSTNAME_MAX];
-	auto loginRes = getlogin_r(hostLoginBuffer, HOSTNAME_MAX);
+    std::array<char, MAX> hostLoginBuffer;
+	auto loginRes = getlogin_r(hostLoginBuffer.data(), HOSTNAME_MAX);
 
     if (loginRes){
         throw std::runtime_error{"Unable to get login name"};
@@ -40,10 +44,8 @@ HostInfo getHostInfo(const int HOSTNAME_MAX = 150){
     }
 
     HostInfo info;
-    info.hostName = hostnameBuffer;
-    info.loginName = hostLoginBuffer;
+    info.hostName = hostnameBuffer.data(); 
+    info.loginName = hostLoginBuffer.data();
 
     return info;
-
-
 }

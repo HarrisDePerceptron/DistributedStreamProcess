@@ -28,7 +28,7 @@ namespace RedisNS = sw::redis;
 namespace logger = spdlog;
 
 
-auto main(int argc, char *argv[]) -> int
+auto main(int , char *[]) -> int
 {
 
 	logger::set_level(logger::level::debug);
@@ -53,7 +53,11 @@ auto main(int argc, char *argv[]) -> int
 	// Task task(redis, taskName, dependentTask, consumerName);
 	Task task(redis, taskName);
 
-	TaskCallback callback = [](const DistributedTask::StreamMessage& msg){
+
+
+	int count {0};
+
+	TaskCallback callback = [&count](const DistributedTask::StreamMessage& msg){
 			fmt::print("recevied message {}\n", msg.messageId);
 			std::vector<std::pair<std::string, std::string>> res;
 			std::copy_if(msg.data.begin(), msg.data.end(), std::back_inserter(res), [](const std::pair<std::string, std::string> & kv){
@@ -86,17 +90,21 @@ auto main(int argc, char *argv[]) -> int
 				logger::debug("Output: {}\n", output);
 			}
 			
+
+			count++;
+			logger::debug("Count callback: {}", count);
 			return response;
 	};
 
 
 	DistributedTask::ConsumerConfig  cc;
 
-	cc.totalRetries = 3;
-	cc.retryWait = std::chrono::milliseconds{5000};
+	cc.totalRetries = 0;
+	cc.retryWait = std::chrono::milliseconds{10};
 	cc.outputResult = true;
 	cc.outputError = true;
-	cc.outputMaxLength = 100000;
+	cc.outputMaxLength = 5;
+	cc.errorMaxLength = 5;
 
 
 	fmt::print("Consumer config: {}\n", cc);
@@ -104,17 +112,20 @@ auto main(int argc, char *argv[]) -> int
 	TaskConsumer consumer {task, consumerName, cc};
 	consumer.addCallback(callback);
 
-	// consumer.addCallback([](const DistributedTask::StreamMessage & msg)->Attrs{
+	// consumer.addCallback([](const DistributedTask::StreamMessage & )->Attrs{
 	// 		throw std::runtime_error{"Random exception generated"};
 			
 	// });
 
 	consumer.consume(1);
 
-	auto result = task.getStreamMessageFromError("1669988579395-0");
 
-	for(const auto& e: result.data){
-		logger::debug("Original {}: {}", e.first, e.second);
-	}
+
+	// auto result = task.getStreamMessageFromError("1669988579395-0");
+
+	// for(const auto& e: result.data){
+	// 	logger::debug("Original {}: {}", e.first, e.second);
+	// }
+
 	return 0;
 }
