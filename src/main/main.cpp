@@ -30,7 +30,6 @@ namespace logger = spdlog;
 
 auto main(int , char *[]) -> int
 {
-
 	logger::set_level(logger::level::debug);
 
 	const std::string password = "87654321";

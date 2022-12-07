@@ -24,6 +24,10 @@
 
 namespace RedisNS = sw::redis;
 
+void get_val(){
+	logger::debug("hello world");
+}
+
 auto main(int argc, char *argv[]) -> int
 {
 

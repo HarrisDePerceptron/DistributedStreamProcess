@@ -30,7 +30,7 @@ namespace Utilities
 
         std::vector<std::byte> buff{fileSize};
 
-        fileInput.read((char *)buff.data(), buff.size());
+        fileInput.read(reinterpret_cast<char *>(buff.data()), buff.size());
 
         fileInput.close();
 
