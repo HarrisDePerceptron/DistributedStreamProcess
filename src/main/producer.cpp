@@ -20,7 +20,7 @@
 
 #include <type_traits>
 #include "task_publisher.h"
-
+#include "config.h"
 
 namespace RedisNS = sw::redis;
 
@@ -58,13 +58,21 @@ auto main(int argc, char *argv[]) -> int
 
 	Task task(redis, taskName);
 
-	TaskPublisher tp {task};
+	DistributedTask::PublisherConfig config;
+	config.inputMaxLength = 100000;
 
 
-	tp.publish({
-		{"n1", args[0]},
-		{"n2", args[1]}
-	});
+	TaskPublisher tp {task, config};
+
+
+	for(int i=0;i<100;i++){
+
+		tp.publish({
+			{"n1", args[0]},
+			{"n2", args[1]}
+		});
+	}
+
 
 	return 0;
 }

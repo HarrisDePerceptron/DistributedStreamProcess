@@ -454,9 +454,15 @@ public:
 	std::string sendMessage(const std::string &streamName, const Attrs &data, std::string streamId, const long long int maxLength)
 	{
 
+		return sendMessage(streamName, data,streamId, maxLength, true);
+	}
+
+	std::string sendMessage(const std::string &streamName, const Attrs &data, std::string streamId, const long long int maxLength, bool approximate)
+	{
+
 		if (maxLength != 0)
 		{
-			auto messageId = redis.xadd(streamName, streamId, data.begin(), data.end(), maxLength, true);
+			auto messageId = redis.xadd(streamName, streamId, data.begin(), data.end(), maxLength, approximate);
 			return messageId;
 		}
 

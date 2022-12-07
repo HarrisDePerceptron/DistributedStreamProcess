@@ -457,7 +457,6 @@ private:
 					consumeMessage(e, streamMessage);
 				}
 
-				logger::debug("Stream Message: \n {}", streamMessage);
 				ackknowledgeStreamMesssage(streamMessage.messageId);
 			}
 			catch (const std::exception &ex)
@@ -535,7 +534,7 @@ public:
 
 		while (true)
 		{
-			std::this_thread::sleep_for(std::chrono::milliseconds(100));
+			// std::this_thread::sleep_for(std::chrono::milliseconds(1));
 
 			try
 			{

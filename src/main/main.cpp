@@ -96,7 +96,7 @@ auto main(int argc, char *argv[]) -> int
 	cc.retryWait = std::chrono::milliseconds{5000};
 	cc.outputResult = true;
 	cc.outputError = true;
-	// cc.outputMaxLength = 1;
+	cc.outputMaxLength = 100000;
 
 
 	fmt::print("Consumer config: {}\n", cc);

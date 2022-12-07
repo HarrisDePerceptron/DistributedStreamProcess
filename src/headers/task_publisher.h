@@ -14,11 +14,13 @@
 #include <functional>
 
 #include "task.h"
+#include "config.h"
 
 class TaskPublisher
 {
 private:
 	
+	unsigned long long int inputMaxLength{0};
 public:
 	TaskPublisher() = delete;
 	TaskPublisher(TaskPublisher &&) = delete;
@@ -26,18 +28,26 @@ public:
 	TaskPublisher &operator=(TaskPublisher &&) = delete;
 
 	Task & task;
-	TaskPublisher(Task & task): task{task}
+
+	TaskPublisher(Task & _task): task{_task}
+	{	
+
+	}
+
+	TaskPublisher(Task & _task, const DistributedTask::PublisherConfig & config):TaskPublisher(_task)
 	{
-
+		if(config.inputMaxLength){
+			inputMaxLength = *config.inputMaxLength;
+		}
 	}
 
-	void publish(const Attrs & values){
-		publish(values, "*");
+	std::string publish(const Attrs & values){
+		return publish(values, "*");
 	}
-	void publish(const Attrs &values,  const std::string &streamId){
+	std::string publish(const Attrs &values,  const std::string &streamId) const{
 
 		auto inputStreamName = task.getInputStreamName();
-		task.sendMessage(inputStreamName, values, streamId);
+		return task.sendMessage(inputStreamName, values, streamId,inputMaxLength);
 
 	}
 
